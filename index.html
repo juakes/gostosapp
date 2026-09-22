@@ -104,6 +104,17 @@
   .cat-bar-fill.amber { background: var(--amber); }
   .cat-bar-fill.coral { background: var(--coral); }
 
+  .subcat-list { border-top: 1px solid var(--line); padding: 4px 16px 6px; }
+  details.subcategory { border-bottom: 1px dashed var(--line); }
+  details.subcategory:last-child { border-bottom: none; }
+  details.subcategory summary { cursor: pointer; padding: 10px 2px; list-style: none; }
+  details.subcategory summary::-webkit-details-marker { display: none; }
+  .subcat-top { display: flex; justify-content: space-between; align-items: center; }
+  .subcat-name { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+  .subcat-amt { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 12.5px; color: var(--ink-soft); }
+  .subcat-count { font-size: 10.5px; color: var(--ink-soft); margin-top: 2px; }
+  details.subcategory .tx-list { border-top: none; padding: 0 0 8px; }
+
   .tx-list { border-top: 1px solid var(--line); padding: 6px 16px 12px; }
   .tx { display: grid; grid-template-columns: 74px 1fr auto auto; gap: 8px; align-items: center;
     padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: 12.5px; }
@@ -508,7 +519,7 @@ let DATA = { gastos: [], ingresos: [], objetivos: {}, categorias: {}, correccion
 
 const CATEGORIAS_DEFAULT = {
   "Hogar": ["ABL","Expensas","Luz","Gas","Celulares","Internet","Agua","Servicio doméstico","Abonos digitales"],
-  "Supermercado": ["Alimentos y supermercado","Comida perro"],
+  "Supermercado": ["Cadena","Chino","Verdulería","Carnes y pescados","Panadería","Casa de pastas","Otros","Comida perro"],
   "Crianza": ["Mesadas","Academia hijo","Inglés","Psicoanálisis hijos","Salud hijo","Cooperadora","Fútbol hijo menor"],
   "Salud": ["Gimnasio","Taller de escritura","Farmacia","Psicoanálisis padre"],
   "Auto": ["Patente","Nafta","Cochera","Mantenimiento","Peajes","Cuota/crédito","Seguro"],
@@ -1379,6 +1390,48 @@ function mesActualRango() {
   const diaHoy = d.getDate();
   return { desde, hasta, pctMes: (diaHoy/diasEnMes*100) };
 }
+
+function renderSubcategoriasDeCategoria(cat, items) {
+  // Agrupa los movimientos de una categoria por subcategoria, para el segundo nivel del acordeon.
+  const porSubcat = {};
+  items.forEach(g => {
+    const key = g.subcategoria || '__sin__';
+    (porSubcat[key] = porSubcat[key] || []).push(g);
+  });
+
+  // Orden: primero las subcategorias definidas en la taxonomia (en su orden), despues
+  // cualquier otra que aparezca en los gastos pero no este en la taxonomia, y "Sin subcategoría" al final.
+  const nombresTaxonomia = (DATA.categorias[cat] || []).map(s => nombreSub(s));
+  const clavesPresentes = Object.keys(porSubcat);
+  const ordenadas = [];
+  nombresTaxonomia.forEach(n => { if (porSubcat[n]) ordenadas.push(n); });
+  clavesPresentes.forEach(k => { if (k !== '__sin__' && !ordenadas.includes(k)) ordenadas.push(k); });
+  if (porSubcat['__sin__']) ordenadas.push('__sin__');
+
+  return ordenadas.map(key => {
+    const subItems = porSubcat[key];
+    const subSubtotal = subItems.reduce((s,g)=>s+g.monto,0);
+    const nombre = key === '__sin__' ? 'Sin subcategoría' : key;
+    const filas = subItems.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(g => `
+      <div class="tx">
+        <div class="tx-date">${g.fecha.slice(5)}${g.hora?' '+g.hora:''}</div>
+        <div>${g.notas||g.modoPago}${g.tipo==='fijo'?'<span class="tx-badge">'+g.estado+'</span>':''}</div>
+        <div class="tx-amt">${money(g.monto)}</div>
+        <div class="tx-actions">
+          <button class="tx-icon-btn tx-edit" onclick="editarGasto('${g.id}')" title="Editar">${PENCIL_SVG}</button>
+          <button class="tx-icon-btn tx-del" onclick="borrarGasto('${g.id}')" title="Borrar">${X_SVG}</button>
+        </div>
+      </div>`).join('');
+    return `<details class="subcategory">
+      <summary>
+        <div class="subcat-top"><span class="subcat-name">${nombre}</span><span class="subcat-amt">${money(subSubtotal)}</span></div>
+        <div class="subcat-count">${subItems.length} mov.</div>
+      </summary>
+      <div class="tx-list">${filas}</div>
+    </details>`;
+  }).join('');
+}
+
 function renderTodo() {
   const { desde, hasta, pctMes } = rangoDeMes(mesSeleccionado.y, mesSeleccionado.m);
   document.getElementById('mes-label').textContent = nombreMes(mesSeleccionado.y, mesSeleccionado.m);
@@ -1413,23 +1466,14 @@ function renderTodo() {
     const objetivo = DATA.objetivos[cat] || 0;
     const st = estadoClase(subtotal, objetivo);
     const pct = objetivo>0 ? Math.min(subtotal/objetivo*100,100) : (subtotal>0?100:0);
-    const filas = items.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(g => `
-      <div class="tx">
-        <div class="tx-date">${g.fecha.slice(5)}${g.hora?' '+g.hora:''}</div>
-        <div>${g.subcategoria?g.subcategoria+' — ':''}${g.notas||g.modoPago}${g.tipo==='fijo'?'<span class="tx-badge">'+g.estado+'</span>':''}</div>
-        <div class="tx-amt">${money(g.monto)}</div>
-        <div class="tx-actions">
-          <button class="tx-icon-btn tx-edit" onclick="editarGasto('${g.id}')" title="Editar">${PENCIL_SVG}</button>
-          <button class="tx-icon-btn tx-del" onclick="borrarGasto('${g.id}')" title="Borrar">${X_SVG}</button>
-        </div>
-      </div>`).join('');
+    const subcatsHtml = renderSubcategoriasDeCategoria(cat, items);
     return `<details class="category">
       <summary>
         <div class="cat-top"><span class="cat-name">${cat}</span><span class="cat-amt ${st}">${money(subtotal)}</span></div>
         <div class="cat-obj">objetivo ${objetivo>0?money(objetivo):'—'} · ${items.length} mov.</div>
         <div class="cat-bar"><div class="cat-bar-fill ${st}" style="width:${pct}%"></div></div>
       </summary>
-      <div class="tx-list">${filas || '<div class="empty">Sin movimientos este mes.</div>'}</div>
+      <div class="subcat-list">${subcatsHtml || '<div class="empty">Sin movimientos este mes.</div>'}</div>
     </details>`;
   }).join('');
 }
