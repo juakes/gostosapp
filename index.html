@@ -373,6 +373,36 @@
   .borrador-fields label { margin: 0; font-size: 10px; }
   .borrador-fields select, .borrador-fields input { padding: 6px 7px; font-size: 12px; }
   .borrador-fields .full { grid-column: 1 / -1; }
+
+  .vista-tabs { display: flex; gap: 4px; margin-bottom: 16px; background: var(--bg-card); border: 1px solid var(--line); padding: 4px; border-radius: 14px; }
+  .vista-tab { flex: 1; text-align: center; padding: 9px 2px; border-radius: 10px; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); cursor: pointer; background: none; border: none; font-family: inherit; }
+  .vista-tab.active { background: var(--bg-card-2); color: var(--ink); }
+  .seccion-titulo { font-size: 11px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.6px; margin: 18px 0 8px; }
+  .card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; }
+  .card.clickable { cursor: pointer; }
+  .card.cerrado { opacity: 0.65; border-style: dashed; }
+  .card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .card-label { font-size: 12px; color: var(--ink-soft); }
+  .card-num { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+  .card-num.coral { color: var(--coral); }
+  .card-num.mint { color: var(--mint); }
+  .titulo-inline {
+    font-size: 15px; font-weight: 700; background: transparent; border: 1px solid transparent; border-radius: 8px;
+    padding: 3px 6px; margin-left: -7px; width: 100%; color: var(--ink);
+  }
+  .titulo-inline:hover { border-color: var(--line); }
+  .titulo-inline:focus { border-color: var(--mint); background: var(--bg); outline: none; }
+  .proy-estado { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: var(--bg-card-2); color: var(--ink-soft); white-space: nowrap; }
+  .proy-montos { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; margin: 4px 0 2px; }
+  .fin-row { margin-top: 10px; }
+  .fin-row .xp-top span:last-child { font-variant-numeric: tabular-nums; }
+  .linea { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: 12.5px; }
+  .linea:last-child { border-bottom: none; }
+  .linea.clickable { cursor: pointer; }
+  .linea .l-nombre { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .linea .l-sub { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+  .linea .l-monto { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+  .linea.total { font-weight: 700; border-top: 1px solid var(--line); border-bottom: none; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -424,6 +454,13 @@
     </div>
   </div>
 
+  <div class="vista-tabs" role="tablist">
+    <button class="vista-tab active" data-vista="mes" role="tab">Mes</button>
+    <button class="vista-tab" data-vista="proyectos" role="tab">Proyectos</button>
+    <button class="vista-tab" data-vista="fuentes" role="tab">Fuentes</button>
+  </div>
+
+  <div id="vista-mes">
   <div class="hud">
     <div class="mes-nav" id="mes-nav">
       <button class="mes-arrow" id="mes-arrow-prev" onclick="cambiarMes(-1)" aria-label="Mes anterior">‹</button>
@@ -451,10 +488,27 @@
     </div>
   </div>
 
+  <div id="proyectos-mes"></div>
+
   <div class="filter-strip" id="filter-strip"></div>
   <div class="filter-chips" id="filter-chips"></div>
 
   <div id="acordeon"></div>
+  </div><!-- /vista-mes -->
+
+  <div id="vista-proyectos" style="display:none;">
+    <div class="btn-row" style="margin-top:0;margin-bottom:14px;"><button class="pill pill-primary" onclick="abrirEditorProyecto()">+ Nuevo proyecto</button></div>
+    <div id="lista-proyectos"></div>
+  </div>
+
+  <div id="vista-fuentes" style="display:none;">
+    <div id="fuentes-flujo-mes"></div>
+    <div class="seccion-titulo">Fuentes de stock</div>
+    <div id="lista-fuentes-stock"></div>
+    <div class="seccion-titulo">Fuentes de flujo</div>
+    <div id="lista-fuentes-flujo"></div>
+    <div class="btn-row"><button class="pill pill-primary" onclick="abrirEditorFuente()">+ Nueva fuente</button></div>
+  </div>
 </div>
 
 <button class="fab" onclick="abrirSheet('cargar')" aria-label="Nuevo gasto">
@@ -515,6 +569,11 @@
       <div class="tag-sugs" id="g-etiquetas-sug"></div>
       <label>Notas (opcional)</label>
       <textarea id="g-notas" placeholder="Detalle, comercio, etc."></textarea>
+      <div id="g-proyecto-wrap" style="display:none;">
+        <label>Proyecto (opcional)</label>
+        <select id="g-proyecto"></select>
+        <div class="hint">Los gastos asignados a un proyecto no cuentan en el gasto del mes.</div>
+      </div>
       <label class="check"><input type="checkbox" id="g-proyeccion"> Todavía no se pagó: guardarlo como proyección</label>
       <div id="g-reemplazo"></div>
       <div id="g-warning"></div>
@@ -571,6 +630,12 @@
     <div class="sheet-handle"></div>
     <div class="sheet-title">Pendientes</div>
     <div id="lista-alertas"></div>
+    <div class="btn-row"><button class="pill pill-secondary" onclick="cerrarSheet()">Cerrar</button></div>
+  </div>
+
+  <div class="sheet" id="sheet-proyecto" style="display:none;">
+    <div class="sheet-handle"></div>
+    <div id="proyecto-body"></div>
     <div class="btn-row"><button class="pill pill-secondary" onclick="cerrarSheet()">Cerrar</button></div>
   </div>
 
@@ -671,13 +736,15 @@ async function entrarALaApp() {
   document.getElementById('login-overlay').style.display = 'none';
   document.getElementById('app-root').style.display = 'block';
   await cargarTodo();
+  await refrescarVistasFinanzas();
   await asegurarProyecciones();
   renderTodo();
   renderAlertas();
 }
 
 // ---------- Estado ----------
-let DATA = { gastos: [], ingresos: [], objetivos: {}, sumaAlTotal: {}, categorias: {}, correcciones: {}, recurrentes: [] };
+let DATA = { gastos: [], ingresos: [], objetivos: {}, sumaAlTotal: {}, categorias: {}, correcciones: {}, recurrentes: [],
+  proyectos: [], fuentes: [], movimientos: [], aportes: [] };
 
 const CATEGORIAS_DEFAULT = {
   "Hogar": ["ABL","Expensas","Luz","Gas","Celulares","Internet","Agua","Servicio doméstico","Abonos digitales"],
@@ -757,7 +824,8 @@ function mapGasto(g) {
     id: g.id, fecha: g.fecha, hora: g.hora, categoria: g.categoria,
     subcategoria: g.subcategoria, tipo: g.tipo, modoPago: g.modo_pago,
     monto: Number(g.monto), moneda: g.moneda || 'ARS', estado: g.estado, vencimiento: g.vencimiento,
-    notas: g.notas, origen: g.origen, etiquetas: g.etiquetas || [], recurrenteId: g.recurrente_id || null
+    notas: g.notas, origen: g.origen, etiquetas: g.etiquetas || [], recurrenteId: g.recurrente_id || null,
+    proyectoId: g.proyecto_id || null
   };
 }
 function filaDB(n) {
@@ -765,7 +833,8 @@ function filaDB(n) {
     fecha: n.fecha, hora: n.hora || null, categoria: n.categoria,
     subcategoria: n.subcategoria || null, tipo: n.tipo, modo_pago: n.modoPago,
     monto: n.monto, moneda: n.moneda || 'ARS', estado: n.estado || 'realizado', vencimiento: n.vencimiento || null,
-    notas: n.notas || null, origen: n.origen, etiquetas: n.etiquetas || [], recurrente_id: n.recurrenteId || null
+    notas: n.notas || null, origen: n.origen, etiquetas: n.etiquetas || [], recurrente_id: n.recurrenteId || null,
+    proyecto_id: n.proyectoId || null
   };
 }
 function mapRecurrente(r) {
@@ -792,6 +861,10 @@ async function cargarTodo() {
   DATA.gastos = (await traerTodos('gastos')).map(mapGasto);
   DATA.ingresos = (await traerTodos('ingresos')).map(i => ({ id: i.id, fecha: i.fecha, monto: Number(i.monto), descripcion: i.descripcion }));
   DATA.recurrentes = (await traerTodos('recurrentes')).map(mapRecurrente);
+  DATA.proyectos = (await traerTodos('proyectos')).map(mapProyecto);
+  DATA.fuentes = (await traerTodos('fuentes')).map(mapFuente);
+  DATA.movimientos = (await traerTodos('fuente_movimientos')).map(mapMovimiento);
+  DATA.aportes = (await traerTodos('proyecto_aportes')).map(mapAporte);
 
   const objetivosRows = await traerTodos('objetivos');
   DATA.objetivos = {}; DATA.sumaAlTotal = {};
@@ -1067,7 +1140,7 @@ function htmlReemplazo(proy, monto, idCheck) {
 }
 
 // ---------- Sheets ----------
-const SHEETS = ['cargar', 'alertas', 'config', 'filtros', 'evolucion', 'cargas'];
+const SHEETS = ['cargar', 'alertas', 'config', 'filtros', 'evolucion', 'cargas', 'proyecto'];
 function abrirSheet(nombre) {
   document.getElementById('overlay').classList.add('open');
   SHEETS.forEach(s => document.getElementById('sheet-' + s).style.display = 'none');
@@ -1078,10 +1151,12 @@ function abrirSheet(nombre) {
   if (nombre === 'filtros') renderFiltros();
   if (nombre === 'evolucion') renderEvolucion();
   if (nombre === 'cargas') { renderCargas(); traerCargas().then(renderCargas); }
+  if (nombre === 'proyecto') renderDetalleProyecto();
 }
 function cerrarSheet() {
   document.getElementById('overlay').classList.remove('open');
   editandoId = null;
+  proyectoAbierto = null;
   document.querySelector('.manual-toggle').style.display = 'block';
   document.querySelector('#sheet-cargar .sheet-title').textContent = 'Nuevo gasto';
 }
@@ -1375,7 +1450,8 @@ function renderTodo() {
   document.getElementById('mes-arrow-next').style.visibility = R.esRango ? 'hidden' : 'visible';
   document.getElementById('mes-arrow-next').disabled = !R.esRango && mesSeleccionado >= ymSumar(ymActual(), MAX_MESES_ADELANTE);
 
-  const enRango = DATA.gastos.filter(g => g.fecha >= R.desde && g.fecha <= R.hasta && cumpleFiltros(g));
+  // los gastos asignados a un proyecto no cuentan en el gasto del mes: se ven en la sección Proyectos
+  const enRango = DATA.gastos.filter(g => !g.proyectoId && g.fecha >= R.desde && g.fecha <= R.hasta && cumpleFiltros(g));
   const cuenta = enRango.filter(g => sumaAlTotal(g.categoria));
   const m = textoMontos(cuenta);
   const flexible = sumar(cuenta.filter(g => !esUSD(g) && !esProyectado(g) && g.tipo === 'flexible'));
@@ -1443,6 +1519,9 @@ function renderTodo() {
     </details>`;
   }).join('');
   document.getElementById('acordeon').innerHTML = html || '<div class="empty">Ningún gasto coincide con los filtros. Probá quitar alguno.</div>';
+
+  renderProyectosMes(R);
+  renderVistasFinanzas();
 }
 
 document.getElementById('acordeon').addEventListener('click', e => {
@@ -1627,6 +1706,7 @@ function prepararCarga() {
   document.getElementById('g-proyeccion').checked = false;
   document.getElementById('g-reemplazo').innerHTML = '';
   document.getElementById('g-warning').innerHTML = '';
+  prepararSelectProyecto(null);
   proyeccionTocada = false;
   sugerenciasEtiquetas('g-etiquetas', 'g-etiquetas-sug');
   borradoresActuales = [];
@@ -1733,7 +1813,8 @@ function intentarGuardarGasto() {
     modoPago: document.getElementById('g-modo').value, monto, moneda: document.getElementById('g-moneda').value,
     estado, vencimiento, notas: document.getElementById('g-notas').value,
     etiquetas: parseEtiquetas(document.getElementById('g-etiquetas').value),
-    origen, recurrenteId: original ? original.recurrenteId : null
+    origen, recurrenteId: original ? original.recurrenteId : null,
+    proyectoId: document.getElementById('g-proyecto').value || null
   };
   if (nuevo.subcategoria === NUEVA_SUB) nuevo.subcategoria = null;
 
@@ -1819,6 +1900,7 @@ function editarGasto(id) {
   document.getElementById('g-etiquetas').value = (g.etiquetas || []).join(', ');
   document.getElementById('g-notas').value = g.notas || '';
   document.getElementById('g-proyeccion').checked = esProyectado(g);
+  prepararSelectProyecto(g.proyectoId);
   document.getElementById('g-reemplazo').innerHTML = '';
   document.getElementById('g-warning').innerHTML = '';
   sugerenciasEtiquetas('g-etiquetas', 'g-etiquetas-sug');
@@ -1978,6 +2060,7 @@ function renderBorradores() {
         <div><label>Moneda</label><select data-f="moneda"><option value="ARS" ${b.moneda !== 'USD' ? 'selected' : ''}>Pesos</option><option value="USD" ${b.moneda === 'USD' ? 'selected' : ''}>Dólares</option></select></div>
         <div class="full"><label>Etiquetas</label><input type="text" data-f="etiquetas" value="${esc((b.etiquetas || []).join(', '))}" placeholder="Ej: Miami"></div>
         <div class="full"><label>Notas</label><input type="text" data-f="notas" value="${esc(b.notas || '')}"></div>
+        ${hayProyectosElegibles(null) ? `<div class="full"><label>Proyecto</label><select data-f="proyecto">${opcionesProyecto(null)}</select></div>` : ''}
       </div>
       <label class="check"><input type="checkbox" data-f="proyeccion" ${esFuturo ? 'checked' : ''}> Todavía no se pagó: guardarlo como proyección</label>
       ${proy ? htmlReemplazo(proy, b.monto, 'reemp-' + b._id).replace('<div class="reemplazo-box">', `<div class="reemplazo-box" data-proy-id="${proy.id}">`) : ''}
@@ -2045,7 +2128,8 @@ async function aceptarBorrador(id) {
     tipo: q('tipo').value, modoPago: q('modoPago').value, monto: parseFloat(q('monto').value), moneda: q('moneda').value,
     estado: esProy ? 'pendiente' : 'realizado', vencimiento: esProy ? fecha : null,
     notas: q('notas').value, etiquetas: parseEtiquetas(q('etiquetas').value),
-    origen: esProy ? 'proyectado' : 'ia', recurrenteId: null
+    origen: esProy ? 'proyectado' : 'ia', recurrenteId: null,
+    proyectoId: q('proyecto') ? (q('proyecto').value || null) : null
   };
   if (!nuevo.categoria || isNaN(nuevo.monto) || nuevo.monto <= 0) { alert('Falta la categoría o el monto.'); return; }
 
@@ -2329,7 +2413,8 @@ async function importarBackup() {
   try {
     const data = JSON.parse(document.getElementById('backup-input').value.trim());
     if (data.gastos && data.gastos.length) {
-      const filas = data.gastos.map(g => filaDB({ ...g, origen: g.origen || 'importado', recurrenteId: null }));
+      const filas = data.gastos.map(g => filaDB({ ...g, origen: g.origen || 'importado', recurrenteId: null,
+        proyectoId: DATA.proyectos.some(p => p.id === g.proyectoId) ? g.proyectoId : null }));
       const { data: ins } = await supa.from('gastos').insert(filas).select();
       DATA.gastos = DATA.gastos.concat((ins || []).map(mapGasto));
     }
@@ -2358,12 +2443,526 @@ async function importarBackup() {
   }
 }
 function exportarBackup() {
-  const data = { gastos: DATA.gastos, ingresos: DATA.ingresos, objetivos: DATA.objetivos, categorias: DATA.categorias, recurrentes: DATA.recurrentes };
+  const data = { gastos: DATA.gastos, ingresos: DATA.ingresos, objetivos: DATA.objetivos, categorias: DATA.categorias, recurrentes: DATA.recurrentes,
+    proyectos: DATA.proyectos, fuentes: DATA.fuentes, movimientos: DATA.movimientos, aportes: DATA.aportes };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = `backup_gastos_${hoyISO()}.json`; a.click();
   URL.revokeObjectURL(url);
+}
+
+// ---------- Proyectos y fuentes ----------
+let EXISTENCIAS = [];   // vista v_existencias_stock
+let FLUJO = [];         // vista v_flujo_mensual
+let vistaActual = 'mes';
+let proyectoAbierto = null;
+const NOMBRE_TIPO_FUENTE = { flujo: 'Flujo', stock: 'Stock' };
+
+function mapProyecto(p) {
+  return {
+    id: p.id, titulo: p.titulo, estado: p.estado || 'activo', fechaInicio: p.fecha_inicio, fechaFin: p.fecha_fin,
+    presupuesto: p.presupuesto == null ? null : Number(p.presupuesto), monedaPresupuesto: p.moneda_presupuesto || 'USD',
+    notas: p.notas, creado: p.created_at
+  };
+}
+function mapFuente(f) { return { id: f.id, nombre: f.nombre, tipo: f.tipo, moneda: f.moneda || 'ARS', activa: f.activa !== false, notas: f.notas }; }
+function mapMovimiento(m) { return { id: m.id, fuenteId: m.fuente_id, fecha: m.fecha, monto: Number(m.monto), descripcion: m.descripcion }; }
+function mapAporte(a) {
+  return { id: a.id, proyectoId: a.proyecto_id, fuenteId: a.fuente_id, fecha: a.fecha, monto: Number(a.monto), moneda: a.moneda || 'ARS', descripcion: a.descripcion };
+}
+
+async function refrescarVistasFinanzas() {
+  const [ex, fl] = await Promise.all([
+    supa.from('v_existencias_stock').select('*'),
+    supa.from('v_flujo_mensual').select('*')
+  ]);
+  if (ex.error) console.error('v_existencias_stock', ex.error); else EXISTENCIAS = ex.data || [];
+  if (fl.error) console.error('v_flujo_mensual', fl.error); else FLUJO = fl.data || [];
+}
+
+function porMoneda(items) {
+  const out = { ARS: 0, USD: 0 };
+  items.forEach(x => { out[(x.moneda || 'ARS') === 'USD' ? 'USD' : 'ARS'] += x.monto; });
+  return out;
+}
+function textoPorMoneda(m, vacio = '$0') {
+  const partes = [];
+  if (m.ARS) partes.push(moneyM(m.ARS, 'ARS'));
+  if (m.USD) partes.push(moneyM(m.USD, 'USD'));
+  return partes.join(' · ') || vacio;
+}
+function nombreProyecto(id) { const p = DATA.proyectos.find(x => x.id === id); return p ? p.titulo : '—'; }
+function nombreFuente(id) { const f = DATA.fuentes.find(x => x.id === id); return f ? f.nombre : '—'; }
+function gastosDeProyecto(id) { return DATA.gastos.filter(g => g.proyectoId === id); }
+function aportesDeProyecto(id) { return DATA.aportes.filter(a => a.proyectoId === id); }
+
+// Selector de proyecto en la carga de gastos
+function hayProyectosElegibles(sel) { return DATA.proyectos.some(p => p.estado === 'activo' || p.id === sel); }
+function opcionesProyecto(sel) {
+  const ps = DATA.proyectos.filter(p => p.estado === 'activo' || p.id === sel).sort((a, b) => a.titulo.localeCompare(b.titulo, 'es'));
+  return `<option value="">Ninguno (cuenta en el gasto del mes)</option>` +
+    ps.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.titulo)}${p.estado === 'cerrado' ? ' (cerrado)' : ''}</option>`).join('');
+}
+function prepararSelectProyecto(sel) {
+  document.getElementById('g-proyecto').innerHTML = opcionesProyecto(sel);
+  document.getElementById('g-proyecto-wrap').style.display = hayProyectosElegibles(sel) ? 'block' : 'none';
+}
+
+// ---- Vistas ----
+function cambiarVista(v) {
+  vistaActual = v;
+  document.querySelectorAll('.vista-tab').forEach(t => t.classList.toggle('active', t.dataset.vista === v));
+  ['mes', 'proyectos', 'fuentes'].forEach(n => { document.getElementById('vista-' + n).style.display = n === v ? 'block' : 'none'; });
+  renderVistasFinanzas();
+  if (v === 'fuentes') refrescarVistasFinanzas().then(renderFuentes);
+}
+document.querySelectorAll('.vista-tab').forEach(t => t.addEventListener('click', () => cambiarVista(t.dataset.vista)));
+
+function renderVistasFinanzas() {
+  if (vistaActual === 'proyectos') renderProyectos();
+  if (vistaActual === 'fuentes') renderFuentes();
+  if (proyectoAbierto && document.getElementById('sheet-proyecto').style.display === 'block') renderDetalleProyecto();
+}
+
+// ---- Barra de % financiado (aportes / gastado, por moneda, sin convertir) ----
+function barrasFinanciado(gastado, aportado) {
+  const html = ['ARS', 'USD'].filter(m => gastado[m] || aportado[m]).map(m => {
+    const pct = gastado[m] > 0 ? aportado[m] / gastado[m] * 100 : null;
+    const cls = pct === null ? 'neutral' : pct >= 100 ? 'mint' : pct >= 50 ? 'amber' : 'coral';
+    const det = pct === null ? `${moneyM(aportado[m], m)} aportado, sin gastos` : `${Math.round(pct)}% · ${moneyM(aportado[m], m)} de ${moneyM(gastado[m], m)}`;
+    return `<div class="fin-row">
+      <div class="xp-top"><span class="xp-name">Financiado ${m === 'USD' ? 'en dólares' : 'en pesos'}</span><span>${det}</span></div>
+      <div class="cat-bar"><div class="cat-bar-fill ${cls}" style="width:${Math.min(pct || 0, 100)}%"></div></div>
+    </div>`;
+  }).join('');
+  return html || '<div class="hint">Sin gastos ni aportes todavía.</div>';
+}
+
+function resumenProyecto(p) {
+  const gastos = gastosDeProyecto(p.id);
+  const reales = gastos.filter(g => !esProyectado(g));
+  return {
+    gastos, reales, gastado: porMoneda(reales), proyectado: porMoneda(gastos.filter(esProyectado)),
+    aportado: porMoneda(aportesDeProyecto(p.id))
+  };
+}
+
+function renderProyectos() {
+  const cont = document.getElementById('lista-proyectos');
+  if (!DATA.proyectos.length) {
+    cont.innerHTML = '<div class="empty">Todavía no hay proyectos. Creá uno y después asignale gastos desde el formulario de carga.</div>';
+    return;
+  }
+  const orden = DATA.proyectos.slice().sort((a, b) => (a.estado === 'activo' ? 0 : 1) - (b.estado === 'activo' ? 0 : 1) || String(b.creado || '').localeCompare(String(a.creado || '')));
+  cont.innerHTML = orden.map(p => {
+    const r = resumenProyecto(p);
+    const meta = [`${r.reales.length} gasto${r.reales.length === 1 ? '' : 's'}`];
+    if (r.proyectado.ARS || r.proyectado.USD) meta.push(`<span style="color:#C7BFFF">+ ${textoPorMoneda(r.proyectado)} proyectado</span>`);
+    if (p.presupuesto) meta.push(`presupuesto ${moneyM(p.presupuesto, p.monedaPresupuesto)}`);
+    return `<div class="card clickable ${p.estado === 'cerrado' ? 'cerrado' : ''}" data-proy="${p.id}">
+      <div class="card-top">
+        <input class="titulo-inline" data-titulo="${p.id}" value="${esc(p.titulo)}" aria-label="Título del proyecto">
+        ${p.estado === 'cerrado' ? '<span class="proy-estado">cerrado</span>' : ''}
+      </div>
+      <div class="proy-montos">${textoPorMoneda(r.gastado)}</div>
+      <div class="cat-obj" style="margin:0;">${meta.join(' · ')}</div>
+      ${barrasFinanciado(r.gastado, r.aportado)}
+    </div>`;
+  }).join('');
+}
+document.getElementById('lista-proyectos').addEventListener('click', e => {
+  if (e.target.closest('.titulo-inline')) return;
+  const c = e.target.closest('[data-proy]');
+  if (c) abrirProyecto(c.dataset.proy);
+});
+
+// Título editable inline (tarjetas y detalle)
+document.addEventListener('keydown', e => {
+  if (e.target.matches && e.target.matches('.titulo-inline') && e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+  if (e.target.matches && e.target.matches('.titulo-inline') && e.key === 'Escape') {
+    const p = DATA.proyectos.find(x => x.id === e.target.dataset.titulo);
+    if (p) e.target.value = p.titulo;
+    e.target.blur();
+  }
+});
+document.addEventListener('change', e => {
+  if (e.target.matches && e.target.matches('.titulo-inline')) guardarTituloProyecto(e.target.dataset.titulo, e.target);
+});
+async function guardarTituloProyecto(id, input) {
+  const p = DATA.proyectos.find(x => x.id === id);
+  if (!p) return;
+  const titulo = input.value.trim();
+  if (!titulo || titulo === p.titulo) { input.value = p.titulo; return; }
+  const { error } = await supa.from('proyectos').update({ titulo }).eq('id', id);
+  if (error) { alert('No se pudo renombrar: ' + error.message); input.value = p.titulo; return; }
+  p.titulo = titulo;
+  document.querySelectorAll(`.titulo-inline[data-titulo="${id}"]`).forEach(el => { if (el !== input) el.value = titulo; });
+  renderProyectosMes(rangoVisible());
+}
+
+// ---- Detalle de un proyecto ----
+function abrirProyecto(id) {
+  abrirSheet('proyecto');
+  proyectoAbierto = id;
+  renderDetalleProyecto();
+}
+function renderDetalleProyecto() {
+  const cont = document.getElementById('proyecto-body');
+  const p = DATA.proyectos.find(x => x.id === proyectoAbierto);
+  if (!p) { cont.innerHTML = ''; return; }
+  const r = resumenProyecto(p);
+
+  // Desglose por subcategoría
+  const grupos = {};
+  r.reales.forEach(g => { const k = claveSub(g.categoria, g.subcategoria); (grupos[k] = grupos[k] || []).push(g); });
+  const desglose = Object.entries(grupos)
+    .map(([k, items]) => [k, porMoneda(items), items.length])
+    .sort((a, b) => (b[1].ARS - a[1].ARS) || (b[1].USD - a[1].USD))
+    .map(([k, m, n]) => {
+      const [cat, sub] = k.split('›');
+      return `<div class="linea"><div><div class="l-nombre">${esc(sub || 'Sin subcategoría')}</div><div class="l-sub">${esc(cat)} · ${n} mov.</div></div><div class="l-monto">${textoPorMoneda(m)}</div></div>`;
+    }).join('');
+
+  // Aportes por fuente
+  const aportes = aportesDeProyecto(p.id);
+  const porFuente = {};
+  aportes.forEach(a => { (porFuente[a.fuenteId] = porFuente[a.fuenteId] || []).push(a); });
+  const aportesFuente = Object.entries(porFuente).map(([fid, items]) => {
+    const f = DATA.fuentes.find(x => x.id === fid);
+    return `<div class="linea"><div><div class="l-nombre">${esc(nombreFuente(fid))}</div><div class="l-sub">${f ? NOMBRE_TIPO_FUENTE[f.tipo] || f.tipo : ''} · ${items.length} aporte${items.length === 1 ? '' : 's'}</div></div><div class="l-monto">${textoPorMoneda(porMoneda(items))}</div></div>`;
+  }).join('');
+  const listaAportes = aportes.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).map(a => `<div class="tx">
+    <div class="tx-date">${fechaCorta(a.fecha)}</div>
+    <div>${esc(nombreFuente(a.fuenteId))}${a.descripcion ? `<div class="tx-tags" style="color:var(--ink-soft)">${esc(a.descripcion)}</div>` : ''}</div>
+    <div class="tx-amt">${moneyM(a.monto, a.moneda)}</div>
+    <div class="tx-actions"><button class="tx-icon-btn tx-del" data-del-aporte="${a.id}" title="Borrar aporte">${X_SVG}</button></div>
+  </div>`).join('');
+
+  const filas = r.gastos.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).map(filaTx).join('');
+  const fechas = [p.fechaInicio ? 'desde ' + fechaCorta(p.fechaInicio) : '', p.fechaFin ? 'hasta ' + fechaCorta(p.fechaFin) : ''].filter(Boolean).join(' ');
+  const meta = [p.estado === 'cerrado' ? 'Cerrado' : 'Activo', fechas, p.presupuesto ? 'presupuesto ' + moneyM(p.presupuesto, p.monedaPresupuesto) : ''].filter(Boolean).join(' · ');
+
+  cont.innerHTML = `
+    <input class="titulo-inline" data-titulo="${p.id}" value="${esc(p.titulo)}" style="font-size:18px;" aria-label="Título del proyecto">
+    <div class="hint" style="margin-top:2px;">${esc(meta)}</div>
+    ${p.notas ? `<div class="hint">${esc(p.notas)}</div>` : ''}
+    <div class="card" style="margin-top:14px;">
+      <div class="card-label">Total gastado</div>
+      <div class="proy-montos">${textoPorMoneda(r.gastado)}</div>
+      ${(r.proyectado.ARS || r.proyectado.USD) ? `<div class="hint" style="margin-top:0;color:#C7BFFF;">+ ${textoPorMoneda(r.proyectado)} proyectado (no suma al total)</div>` : ''}
+      ${barrasFinanciado(r.gastado, r.aportado)}
+    </div>
+    <div class="seccion-titulo">Por subcategoría</div>
+    ${desglose || '<div class="empty">Sin gastos asignados. Al cargar o editar un gasto, elegí este proyecto.</div>'}
+    <div class="seccion-titulo">Gastos</div>
+    <div id="proyecto-gastos">${filas || '<div class="empty">—</div>'}</div>
+    <div class="seccion-titulo">Aportes por fuente</div>
+    ${aportesFuente || '<div class="empty">Todavía no hay aportes.</div>'}
+    ${listaAportes ? `<div style="margin-top:8px;" id="proyecto-aportes">${listaAportes}</div>` : ''}
+    <div class="btn-row">
+      <button class="pill pill-primary" onclick="abrirEditorAporte('${p.id}')">+ Aporte</button>
+      <button class="pill pill-secondary" onclick="abrirEditorProyecto('${p.id}')">Editar proyecto</button>
+    </div>`;
+}
+document.getElementById('proyecto-body').addEventListener('click', e => {
+  const del = e.target.closest('[data-del-aporte]');
+  if (del) {
+    const a = DATA.aportes.find(x => x.id === del.dataset.delAporte);
+    if (a) mostrarConfirmacion(`¿Borrar el aporte de ${moneyM(a.monto, a.moneda)} de ${esc(nombreFuente(a.fuenteId))}?`, () => borrarAporte(a.id));
+    return;
+  }
+  const b = e.target.closest('[data-acc]');
+  if (b) { e.preventDefault(); accionGasto(b.dataset.acc, b.dataset.id); }
+});
+
+function abrirEditorProyecto(id) {
+  const p = id ? DATA.proyectos.find(x => x.id === id) : null;
+  const d = p || { titulo: '', estado: 'activo', fechaInicio: hoyISO(), fechaFin: null, presupuesto: null, monedaPresupuesto: 'USD', notas: '' };
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  overlay.innerHTML = `
+    <div class="confirm-box editor" role="dialog" aria-label="Proyecto">
+      <p style="font-weight:700;margin-bottom:4px;">${p ? 'Editar proyecto' : 'Nuevo proyecto'}</p>
+      <label>Título</label><input type="text" id="p-titulo" value="${esc(d.titulo)}" placeholder="Ej: Remodelación cocina, Viaje Miami">
+      <div class="row2">
+        <div><label>Inicio</label><input type="date" id="p-inicio" value="${d.fechaInicio || ''}"></div>
+        <div><label>Fin (opcional)</label><input type="date" id="p-fin" value="${d.fechaFin || ''}"></div>
+      </div>
+      <div class="row2">
+        <div><label>Presupuesto (opcional)</label><input type="number" id="p-presupuesto" value="${d.presupuesto ?? ''}" step="0.01"></div>
+        <div><label>Moneda</label><select id="p-moneda"><option value="USD" ${d.monedaPresupuesto !== 'ARS' ? 'selected' : ''}>Dólares</option><option value="ARS" ${d.monedaPresupuesto === 'ARS' ? 'selected' : ''}>Pesos</option></select></div>
+      </div>
+      ${p ? `<label>Estado</label><select id="p-estado"><option value="activo" ${d.estado === 'activo' ? 'selected' : ''}>Activo</option><option value="cerrado" ${d.estado === 'cerrado' ? 'selected' : ''}>Cerrado</option></select>` : ''}
+      <label>Notas (opcional)</label><textarea id="p-notas">${esc(d.notas || '')}</textarea>
+      <div id="p-warning"></div>
+      <div class="btn-row">
+        <button class="pill pill-primary" id="p-guardar">Guardar</button>
+        <button class="pill pill-secondary" id="p-cancelar">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const $ = s => overlay.querySelector(s);
+  $('#p-cancelar').onclick = () => overlay.remove();
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  $('#p-titulo').focus();
+  $('#p-guardar').onclick = async () => {
+    const titulo = $('#p-titulo').value.trim();
+    const presupuesto = parseFloat($('#p-presupuesto').value);
+    const inicio = $('#p-inicio').value || null, fin = $('#p-fin').value || null;
+    if (!titulo) { $('#p-warning').innerHTML = '<div class="warning-box">Poné un título.</div>'; return; }
+    if (inicio && fin && fin < inicio) { $('#p-warning').innerHTML = '<div class="warning-box">La fecha de fin es anterior a la de inicio.</div>'; return; }
+    const fila = {
+      titulo, fecha_inicio: inicio, fecha_fin: fin, presupuesto: isNaN(presupuesto) ? null : presupuesto,
+      moneda_presupuesto: $('#p-moneda').value, notas: $('#p-notas').value.trim() || null
+    };
+    if (p) fila.estado = $('#p-estado').value;
+    $('#p-guardar').disabled = true;
+    const q = p ? supa.from('proyectos').update(fila).eq('id', p.id) : supa.from('proyectos').insert(fila);
+    const { data, error } = await q.select().single();
+    if (error) { $('#p-warning').innerHTML = `<div class="warning-box">${esc(error.message)}</div>`; $('#p-guardar').disabled = false; return; }
+    const nuevo = mapProyecto(data);
+    const idx = DATA.proyectos.findIndex(x => x.id === nuevo.id);
+    if (idx >= 0) DATA.proyectos[idx] = nuevo; else DATA.proyectos.push(nuevo);
+    overlay.remove();
+    mostrarToast('Proyecto guardado');
+    renderTodo();
+  };
+}
+
+function abrirEditorAporte(proyectoId) {
+  const fuentes = DATA.fuentes.filter(f => f.activa).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  if (!fuentes.length) {
+    overlay.innerHTML = `<div class="confirm-box"><p>Para cargar un aporte primero creá una fuente (sueldo, ahorro en dólares, etc.) en la pestaña Fuentes.</p>
+      <div class="btn-row"><button class="pill pill-secondary" id="a-cerrar">Entendido</button></div></div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#a-cerrar').onclick = () => overlay.remove();
+    return;
+  }
+  overlay.innerHTML = `
+    <div class="confirm-box editor" role="dialog" aria-label="Nuevo aporte">
+      <p style="font-weight:700;margin-bottom:4px;">Aporte a ${esc(nombreProyecto(proyectoId))}</p>
+      <label>Fuente</label><select id="a-fuente">${fuentes.map(f => `<option value="${f.id}">${esc(f.nombre)} (${NOMBRE_TIPO_FUENTE[f.tipo] || f.tipo}, ${f.moneda})</option>`).join('')}</select>
+      <div class="row2">
+        <div><label>Monto</label><input type="number" id="a-monto" step="0.01" placeholder="0"></div>
+        <div><label>Moneda</label><select id="a-moneda"><option value="ARS">Pesos</option><option value="USD">Dólares</option></select></div>
+      </div>
+      <label>Fecha</label><input type="date" id="a-fecha" value="${hoyISO()}">
+      <label>Descripción (opcional)</label><input type="text" id="a-desc">
+      <div id="a-warning"></div>
+      <div class="btn-row">
+        <button class="pill pill-primary" id="a-guardar">Guardar</button>
+        <button class="pill pill-secondary" id="a-cancelar">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const $ = s => overlay.querySelector(s);
+  const sincMoneda = () => { const f = fuentes.find(x => x.id === $('#a-fuente').value); if (f) $('#a-moneda').value = f.moneda === 'USD' ? 'USD' : 'ARS'; };
+  $('#a-fuente').addEventListener('change', sincMoneda);
+  sincMoneda();
+  $('#a-cancelar').onclick = () => overlay.remove();
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  $('#a-guardar').onclick = async () => {
+    const monto = parseFloat($('#a-monto').value);
+    if (isNaN(monto) || monto <= 0) { $('#a-warning').innerHTML = '<div class="warning-box">El monto tiene que ser mayor a 0.</div>'; return; }
+    $('#a-guardar').disabled = true;
+    const { data, error } = await supa.from('proyecto_aportes').insert({
+      proyecto_id: proyectoId, fuente_id: $('#a-fuente').value, fecha: $('#a-fecha').value || hoyISO(),
+      monto, moneda: $('#a-moneda').value, descripcion: $('#a-desc').value.trim() || null
+    }).select().single();
+    if (error) { $('#a-warning').innerHTML = `<div class="warning-box">${esc(error.message)}</div>`; $('#a-guardar').disabled = false; return; }
+    DATA.aportes.push(mapAporte(data));
+    overlay.remove();
+    mostrarToast('Aporte guardado');
+    await refrescarVistasFinanzas();
+    renderTodo();
+  };
+}
+async function borrarAporte(id) {
+  const { error } = await supa.from('proyecto_aportes').delete().eq('id', id);
+  if (error) { alert('No se pudo borrar: ' + error.message); return; }
+  DATA.aportes = DATA.aportes.filter(a => a.id !== id);
+  await refrescarVistasFinanzas();
+  renderTodo();
+}
+
+// ---- Tarjeta "Proyectos" en la vista del mes ----
+function renderProyectosMes(R) {
+  const cont = document.getElementById('proyectos-mes');
+  if (!DATA.proyectos.length) { cont.innerHTML = ''; return; }
+  const flujo = new Set(DATA.fuentes.filter(f => f.tipo === 'flujo').map(f => f.id));
+  const enRango = f => f.fecha >= R.desde && f.fecha <= R.hasta;
+  const aportes = DATA.aportes.filter(a => flujo.has(a.fuenteId) && enRango(a));
+  const gastos = DATA.gastos.filter(g => g.proyectoId && !esProyectado(g) && enRango(g));
+  const ids = new Set([...aportes.map(a => a.proyectoId), ...gastos.map(g => g.proyectoId)]);
+  DATA.proyectos.forEach(p => { if (p.estado === 'activo') ids.add(p.id); });
+  const lineas = [...ids].map(id => DATA.proyectos.find(p => p.id === id)).filter(Boolean)
+    .sort((a, b) => a.titulo.localeCompare(b.titulo, 'es'))
+    .map(p => {
+      const ap = porMoneda(aportes.filter(a => a.proyectoId === p.id));
+      const ga = porMoneda(gastos.filter(g => g.proyectoId === p.id));
+      return `<div class="linea clickable" data-proy-mes="${p.id}">
+        <div><div class="l-nombre">${esc(p.titulo)}</div><div class="l-sub">Gastado ${R.esRango ? 'en el período' : 'en el mes'}: ${textoPorMoneda(ga)}</div></div>
+        <div class="l-monto">${textoPorMoneda(ap)}</div>
+      </div>`;
+    }).join('');
+  cont.innerHTML = `<div class="card">
+    <div class="card-top"><span class="card-label">Proyectos: aportado por fuentes de flujo ${R.esRango ? 'en el período' : 'este mes'}</span></div>
+    <div class="card-num">${textoPorMoneda(porMoneda(aportes))}</div>
+    <div style="margin-top:6px;">${lineas}</div>
+  </div>`;
+}
+document.getElementById('proyectos-mes').addEventListener('click', e => {
+  const l = e.target.closest('[data-proy-mes]');
+  if (l) abrirProyecto(l.dataset.proyMes);
+});
+
+// ---- Fuentes ----
+function renderFuentes() {
+  // Flujo del mes seleccionado (vista v_flujo_mensual, solo pesos)
+  const ym = mesSeleccionado;
+  const row = FLUJO.find(f => String(f.mes).slice(0, 7) === ym) || { ingresos: 0, gasto_mensual: 0, aportes_proyectos: 0 };
+  const ing = Number(row.ingresos) || 0, gas = Number(row.gasto_mensual) || 0, apo = Number(row.aportes_proyectos) || 0;
+  const neto = ing - gas - apo;
+  document.getElementById('fuentes-flujo-mes').innerHTML = `<div class="card">
+    <div class="mes-nav" style="margin-bottom:8px;">
+      <button class="mes-arrow" onclick="cambiarMes(-1)" aria-label="Mes anterior">‹</button>
+      <span class="mes-label">${esc(nombreMes(ym))}</span>
+      <button class="mes-arrow" onclick="cambiarMes(1)" aria-label="Mes siguiente">›</button>
+    </div>
+    <div class="card-label">Flujo del mes</div>
+    <div class="card-num ${neto < 0 ? 'coral' : 'mint'}">${neto < 0 ? '−' : ''}${money(Math.abs(neto))}</div>
+    <div style="margin-top:6px;">
+      <div class="linea"><span>Ingresos</span><span class="l-monto">${money(ing)}</span></div>
+      <div class="linea"><span>− Gasto mensual</span><span class="l-monto">${money(gas)}</span></div>
+      <div class="linea"><span>− Aportes a proyectos</span><span class="l-monto">${money(apo)}</span></div>
+    </div>
+    <div class="hint">Solo pesos. Los ingresos se cargan en Ajustes › Ingresos.</div>
+  </div>`;
+
+  const stock = EXISTENCIAS.slice().sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
+  document.getElementById('lista-fuentes-stock').innerHTML = stock.map(x => {
+    const n = DATA.movimientos.filter(m => m.fuenteId === x.fuente_id).length;
+    const e = Number(x.existencia) || 0;
+    return `<div class="card clickable" data-fuente="${x.fuente_id}">
+      <div class="card-top"><span style="font-weight:700;">${esc(x.nombre)}</span><span class="card-num ${e < 0 ? 'coral' : ''}" style="font-size:18px;">${moneyM(e, x.moneda)}</span></div>
+      <div class="cat-obj" style="margin:2px 0 0;">${n} movimiento${n === 1 ? '' : 's'} · tocá para ver o cargar movimientos</div>
+    </div>`;
+  }).join('') || '<div class="empty">Sin fuentes de stock (ahorros, plazos fijos, dólares guardados...).</div>';
+
+  const flujo = DATA.fuentes.filter(f => f.tipo === 'flujo' && f.activa).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const desde = ym + '-01', hasta = finDeMes(ym);
+  document.getElementById('lista-fuentes-flujo').innerHTML = flujo.length ? `<div class="card">${flujo.map(f => {
+    const ap = porMoneda(DATA.aportes.filter(a => a.fuenteId === f.id && a.fecha >= desde && a.fecha <= hasta));
+    return `<div class="linea"><div><div class="l-nombre">${esc(f.nombre)}</div><div class="l-sub">${esc(f.moneda)}${f.notas ? ' · ' + esc(f.notas) : ''}</div></div>
+      <div class="l-monto">${textoPorMoneda(ap, '—')}<div class="l-sub">aportado este mes</div></div></div>`;
+  }).join('')}</div>` : '<div class="empty">Sin fuentes de flujo (sueldo, honorarios...).</div>';
+}
+document.getElementById('lista-fuentes-stock').addEventListener('click', e => {
+  const c = e.target.closest('[data-fuente]');
+  if (c) abrirFuente(c.dataset.fuente);
+});
+
+function abrirEditorFuente() {
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  overlay.innerHTML = `
+    <div class="confirm-box editor" role="dialog" aria-label="Nueva fuente">
+      <p style="font-weight:700;margin-bottom:4px;">Nueva fuente</p>
+      <label>Nombre</label><input type="text" id="f-nombre" placeholder="Ej: Sueldo, Ahorro USD, Plazo fijo">
+      <div class="row2">
+        <div><label>Tipo</label><select id="f-tipo"><option value="flujo">Flujo (ingreso mensual)</option><option value="stock">Stock (ahorro acumulado)</option></select></div>
+        <div><label>Moneda</label><select id="f-moneda"><option value="ARS">Pesos</option><option value="USD">Dólares</option></select></div>
+      </div>
+      <label>Notas (opcional)</label><input type="text" id="f-notas">
+      <div class="hint">Flujo: lo que entra cada mes (los aportes desde acá se restan del flujo del mes). Stock: un ahorro con saldo propio, que se mueve con movimientos y aportes.</div>
+      <div id="f-warning"></div>
+      <div class="btn-row">
+        <button class="pill pill-primary" id="f-guardar">Guardar</button>
+        <button class="pill pill-secondary" id="f-cancelar">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const $ = s => overlay.querySelector(s);
+  $('#f-cancelar').onclick = () => overlay.remove();
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  $('#f-nombre').focus();
+  $('#f-guardar').onclick = async () => {
+    const nombre = $('#f-nombre').value.trim();
+    if (!nombre) { $('#f-warning').innerHTML = '<div class="warning-box">Poné un nombre.</div>'; return; }
+    $('#f-guardar').disabled = true;
+    const { data, error } = await supa.from('fuentes').insert({ nombre, tipo: $('#f-tipo').value, moneda: $('#f-moneda').value, notas: $('#f-notas').value.trim() || null }).select().single();
+    if (error) { $('#f-warning').innerHTML = `<div class="warning-box">${esc(error.message)}</div>`; $('#f-guardar').disabled = false; return; }
+    DATA.fuentes.push(mapFuente(data));
+    overlay.remove();
+    mostrarToast('Fuente guardada');
+    await refrescarVistasFinanzas();
+    renderTodo();
+  };
+}
+
+function abrirFuente(id) {
+  const f = DATA.fuentes.find(x => x.id === id);
+  if (!f) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  document.body.appendChild(overlay);
+  const pintar = () => {
+    const ex = EXISTENCIAS.find(x => x.fuente_id === id);
+    const movs = DATA.movimientos.filter(m => m.fuenteId === id).sort((a, b) => b.fecha.localeCompare(a.fecha));
+    const aps = DATA.aportes.filter(a => a.fuenteId === id).sort((a, b) => b.fecha.localeCompare(a.fecha));
+    overlay.innerHTML = `
+      <div class="confirm-box editor" role="dialog" aria-label="${esc(f.nombre)}">
+        <p style="font-weight:700;margin-bottom:0;">${esc(f.nombre)}</p>
+        <div class="card-num" style="margin:4px 0 2px;">${moneyM(ex ? Number(ex.existencia) : 0, f.moneda)}</div>
+        <div class="hint" style="margin-top:0;">Existencia: movimientos menos aportes a proyectos.</div>
+        <div class="seccion-titulo">Nuevo movimiento</div>
+        <div class="row2">
+          <div><label style="margin-top:0;">Tipo</label><select id="m-signo"><option value="1">Entrada (+)</option><option value="-1">Salida (−)</option></select></div>
+          <div><label style="margin-top:0;">Monto (${esc(f.moneda)})</label><input type="number" id="m-monto" step="0.01" placeholder="0"></div>
+        </div>
+        <div class="row2">
+          <div><label>Fecha</label><input type="date" id="m-fecha" value="${hoyISO()}"></div>
+          <div><label>Descripción</label><input type="text" id="m-desc" placeholder="Opcional"></div>
+        </div>
+        <div id="m-warning"></div>
+        <div class="btn-row"><button class="pill pill-primary" id="m-guardar">Cargar movimiento</button></div>
+        <div class="seccion-titulo">Movimientos</div>
+        ${movs.map(m => `<div class="tx"><div class="tx-date">${fechaCorta(m.fecha)}</div><div>${esc(m.descripcion || '—')}</div>
+          <div class="tx-amt" style="color:${m.monto < 0 ? 'var(--coral)' : 'var(--mint)'}">${m.monto < 0 ? '−' : '+'}${moneyM(Math.abs(m.monto), f.moneda)}</div>
+          <div class="tx-actions"><button class="tx-icon-btn tx-del" data-del-mov="${m.id}" title="Borrar">${X_SVG}</button></div></div>`).join('') || '<div class="empty">Sin movimientos.</div>'}
+        ${aps.length ? `<div class="seccion-titulo">Aportes a proyectos</div>${aps.map(a => `<div class="tx"><div class="tx-date">${fechaCorta(a.fecha)}</div><div>${esc(nombreProyecto(a.proyectoId))}</div>
+          <div class="tx-amt" style="color:var(--coral)">−${moneyM(a.monto, a.moneda)}</div><div></div></div>`).join('')}` : ''}
+        <div class="btn-row"><button class="pill pill-secondary" id="m-cerrar">Cerrar</button></div>
+      </div>`;
+    const $ = s => overlay.querySelector(s);
+    $('#m-cerrar').onclick = () => overlay.remove();
+    $('#m-guardar').onclick = async () => {
+      const monto = parseFloat($('#m-monto').value);
+      if (isNaN(monto) || monto <= 0) { $('#m-warning').innerHTML = '<div class="warning-box">Poné un monto mayor a 0.</div>'; return; }
+      $('#m-guardar').disabled = true;
+      const { data, error } = await supa.from('fuente_movimientos').insert({
+        fuente_id: id, fecha: $('#m-fecha').value || hoyISO(), monto: monto * Number($('#m-signo').value), descripcion: $('#m-desc').value.trim() || null
+      }).select().single();
+      if (error) { $('#m-warning').innerHTML = `<div class="warning-box">${esc(error.message)}</div>`; $('#m-guardar').disabled = false; return; }
+      DATA.movimientos.push(mapMovimiento(data));
+      await refrescarVistasFinanzas();
+      renderTodo(); pintar();
+    };
+    overlay.querySelectorAll('[data-del-mov]').forEach(b => b.onclick = () => {
+      mostrarConfirmacion('¿Borrar este movimiento?', async () => {
+        const { error } = await supa.from('fuente_movimientos').delete().eq('id', b.dataset.delMov);
+        if (error) { alert('No se pudo borrar: ' + error.message); return; }
+        DATA.movimientos = DATA.movimientos.filter(m => m.id !== b.dataset.delMov);
+        await refrescarVistasFinanzas();
+        renderTodo(); pintar();
+      });
+    });
+  };
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  pintar();
 }
 
 // ---------- Evolución ----------
@@ -2393,7 +2992,7 @@ function renderEvolucion() {
   const hoyYM = ymActual();
   const meses = [];
   for (let i = -(atras - 1); i <= adelante; i++) meses.push(ymSumar(hoyYM, i));
-  const base = DATA.gastos.filter(g => !esUSD(g) && cumpleFiltros(g, { ignorarCategoria: modo !== 'total' && modo !== 'categorias' }));
+  const base = DATA.gastos.filter(g => !esUSD(g) && !g.proyectoId && cumpleFiltros(g, { ignorarCategoria: modo !== 'total' && modo !== 'categorias' }));
   const porMes = {};
   base.forEach(g => { const ym = ymDe(g.fecha); (porMes[ym] = porMes[ym] || []).push(g); });
 
