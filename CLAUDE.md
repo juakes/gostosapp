@@ -18,7 +18,7 @@ Librerías por CDN, cargadas en el `<head>` antes que todo: supabase-js y Chart.
 |---|---|---|
 | 1 | `js/config.js` | URL y clave pública de Supabase; crea el cliente `supa`. |
 | 2 | `js/sesion.js` | Login, registro y entrada a la app (`entrarALaApp`). |
-| 3 | `js/estado.js` | Estado global `DATA` y constantes por defecto (categorías, objetivos, medios de pago, tipos, horizonte). |
+| 3 | `js/estado.js` | Estado global `DATA` y constantes (categorías y objetivos por defecto, medios de pago, tipos, horizonte, `CATS_PROYECTABLES`). |
 | 4 | `js/utiles.js` | Utilidades: fechas y meses, formato de dinero, sumas, escape de HTML, etiquetas, medios de pago. |
 | 5 | `js/datos.js` | Mapeo entre filas de la base y objetos de la app; carga inicial de todo (`cargarTodo`) y barra de estado. |
 | 6 | `js/cargas-log.js` | Historial de cargas (tabla `cargas_log`, la llena un trigger en la base): lectura, filtros y render. |
@@ -26,18 +26,19 @@ Librerías por CDN, cargadas en el `<head>` antes que todo: supabase-js y Chart.
 | 8 | `js/sheets.js` | Abrir y cerrar los paneles (sheets) y navegar entre meses. |
 | 9 | `js/filtros.js` | Filtros de la lista, rango visible y la tira de filtros activos. |
 | 10 | `js/lista.js` | Render principal: filas de gastos (`filaTx`), acordeón por categoría, `renderTodo` y acciones sobre un gasto. |
-| 11 | `js/tablero.js` | Tablero del mes: tiles Variables / Fijos / Proyección y su detalle. |
-| 12 | `js/alertas.js` | Alertas de vencimientos de fijos y proyectados sin confirmar. |
-| 13 | `js/categorias-helpers.js` | Funciones auxiliares de categorías y subcategorías (búsqueda, `<option>` de selects). |
-| 14 | `js/carga-manual.js` | Formulario de carga y edición manual de un gasto. |
-| 15 | `js/carga-ia.js` | Carga inteligente: interpretar texto con IA, revisar y guardar; reglas de corrección aprendidas. |
-| 16 | `js/recurrentes.js` | Interfaz de gastos recurrentes (lista y editor) y el diálogo de confirmación genérico. |
-| 17 | `js/ficha.js` | Ficha de gasto: detalle con promedio de 3 meses y edición campo por campo. |
-| 18 | `js/ajustes.js` | Ajustes: ingresos, objetivos, categorías y backup. |
-| 19 | `js/proyectos.js` | Proyectos: vistas, barra de % financiado, detalle de un proyecto y tarjeta "Proyectos" del mes. |
-| 20 | `js/fuentes.js` | Fuentes de fondos de los proyectos y sus movimientos. |
-| 21 | `js/evolucion.js` | Gráfico de evolución mensual (Chart.js). |
-| 22 | `js/main.js` | Inicio: `init()` revisa la sesión y entra a la app. |
+| 11 | `js/tablero.js` | Home del mes: "Esperado al cierre" (a pagar a mano, débitos por llegar, variables proyectados), cash requerido y ritmo de variables. |
+| 12 | `js/objetivo.js` | Objetivo por subcategoría (`objetivos_subcategoria`): totales, torta del header y pantalla Objetivo mensual (`#objetivo`). |
+| 13 | `js/alertas.js` | Alertas de vencimientos de fijos y proyectados sin confirmar. |
+| 14 | `js/categorias-helpers.js` | Funciones auxiliares de categorías y subcategorías (búsqueda, `<option>` de selects). |
+| 15 | `js/carga-manual.js` | Formulario de carga y edición manual de un gasto. |
+| 16 | `js/carga-ia.js` | Carga inteligente: interpretar texto con IA, revisar y guardar; reglas de corrección aprendidas. |
+| 17 | `js/recurrentes.js` | Interfaz de gastos recurrentes (lista y editor) y el diálogo de confirmación genérico. |
+| 18 | `js/ficha.js` | Ficha de gasto: detalle con promedio de 3 meses y edición campo por campo. |
+| 19 | `js/ajustes.js` | Ajustes: ingresos, objetivos (solo "suma al total"; el monto se edita en Objetivo mensual), categorías y backup. |
+| 20 | `js/proyectos.js` | Proyectos: vistas, barra de % financiado y detalle de un proyecto. |
+| 21 | `js/fuentes.js` | Fuentes de fondos de los proyectos y sus movimientos. |
+| 22 | `js/evolucion.js` | Gráfico de evolución mensual (Chart.js). |
+| 23 | `js/main.js` | Inicio: `init()` revisa la sesión y entra a la app. |
 
 ## Reglas de arquitectura
 

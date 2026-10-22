@@ -1,6 +1,6 @@
-// ---------- Tablero del mes (Variables / Fijos / Proyección) ----------
+// ---------- Tablero del mes (Esperado al cierre, cash requerido y ritmo de variables) ----------
 // Ignora los filtros: solo pesos, solo categorías que suman al total y sin gastos asignados a proyectos.
-let tileSel = 'variables';
+let esperadoAbierto = false;
 let TB_ITEMS = {};
 const MONOGRAMAS = {
   'Mercado Pago': ['MP', '#1E8FD6'], 'Visa BBVA': ['VB', '#1D5FB0'], 'Visa Ciudad': ['VC', '#D9752E'],
@@ -82,7 +82,7 @@ function calcularTablero(ym) {
     pendManual: pendientes.filter(it => !esAutomatico(it.modo)),
     pendAuto: pendientes.filter(it => esAutomatico(it.modo)),
     pagados: items.filter(it => it.pagado > 0).sort((a, b) => b.pagado - a.pagado),
-    objetivo: Object.keys(DATA.objetivos).filter(sumaAlTotal).reduce((s, c) => s + (DATA.objetivos[c] || 0), 0)
+    objetivo: objetivosTotales().total
   };
   T.manualPend = T.pendManual.reduce((s, it) => s + it.pendiente, 0);
   T.debitoPend = T.pendAuto.reduce((s, it) => s + it.pendiente, 0);
@@ -105,6 +105,18 @@ function calcularEsperables(ym) {
   const cats = Object.entries(porCat).map(([categoria, suma]) => ({ categoria, diario: suma / dias, esperado: suma / dias * faltan }))
     .filter(c => c.esperado >= 1).sort((a, b) => b.esperado - a.esperado);
   return { meses, faltan, cats, total: cats.reduce((s, c) => s + c.esperado, 0) };
+}
+
+// Variables proyectados al cierre: categorías de consumo diario (CATS_PROYECTABLES), al ritmo de lo gastado
+// en variables este mes (sin subcategorías fijas): gastado / días transcurridos × días que faltan
+function calcularVariablesProyectados(T, ym) {
+  const dia = Number(hoyISO().slice(8)), faltan = diasDelMes(ym) - dia;
+  const filas = CATS_PROYECTABLES.map(categoria => {
+    const gastado = sumar(T.variables.filter(g => g.categoria === categoria && !(g.subcategoria && esSubFija(categoria, g.subcategoria))));
+    const diario = dia > 0 ? gastado / dia : 0;
+    return { categoria, diario, esperado: Math.round(diario * faltan) };
+  }).filter(c => c.esperado > 0);
+  return { filas, total: filas.reduce((s, c) => s + c.esperado, 0) };
 }
 
 function segmentos(partes) {
@@ -138,9 +150,6 @@ function filaTablero(it, conX) {
     <div class="tb-m">${money(monto)}</div>
     ${conX ? `<button class="tb-x" data-tb-x="${esc(it.id)}" aria-label="Quitar ${esc(it.nombre)} de este mes" title="Quitar de este mes">${X_SVG}</button>` : ''}
   </div>`;
-}
-function seccion(titulo, monto, extra = '') {
-  return `<div class="tb-sec"><span>${titulo}</span><span style="display:flex;align-items:center;gap:8px;"><span class="tb-sec-amt">${money(monto)}</span>${extra}</span></div>`;
 }
 
 function graficoVariables(T, dim, diaFin) {
@@ -199,85 +208,80 @@ function renderTablero(R) {
   TB_CHART = null;
   const ym = mesSeleccionado, actual = ym === ymActual();
   const T = calcularTablero(ym);
-  const E = actual ? calcularEsperables(ym) : null;
-  if (tileSel === 'proyeccion' && !actual) tileSel = 'variables';
-
   const dim = diasDelMes(ym);
   const diaFin = R.tipo === 'actual' ? Number(hoyISO().slice(8)) : (R.tipo === 'pasado' ? dim : 0);
-  const pctDias = diaFin / dim * 100;
-  const pctVar = T.margen > 0 ? T.variablesTotal / T.margen * 100 : (T.variablesTotal > 0 ? 100 : 0);
-  const efectivo = E ? T.manualPend + E.total : 0;
 
-  // Tiles
-  const tile = (id, titulo, valor, contexto, clase = '') => `<button class="tb-tile ${tileSel === id ? 'sel' : ''}" data-tile="${id}" aria-pressed="${tileSel === id}">
-    <div class="tb-t">${titulo}</div><div class="tb-v">${valor}</div><div class="tb-c ${clase}">${contexto}</div></button>`;
-  const nMano = T.pendManual.length;
-  let tiles = tile('variables', 'Variables', money(T.variablesTotal), T.margen > 0 ? `${Math.round(pctVar)}% de ${money(T.margen)}` : 'sin margen') +
-    tile('fijos', 'Fijos', money(T.fijosPagados),
-      nMano ? `${nMano} por pagar a mano` : (T.pendAuto.length ? `${T.pendAuto.length} por débito` : 'todo pagado'), nMano ? 'amber' : '');
-  if (actual) tiles += tile('proyeccion', 'Proyección', money(efectivo), 'efectivo a fin de mes');
+  // Esperado al cierre = gastado realizado + a pagar a mano + débitos por llegar + variables proyectados.
+  // Cada fila se redondea a pesos y los subtotales suman esas filas, así el total coincide con el desplegable.
+  const gastado = Math.round(Math.round((T.fijosPagados + T.variablesTotal) * 100) / 100);
+  const subtotal = items => items.reduce((s, it) => s + Math.round(it.pendiente), 0);
+  const mano = subtotal(T.pendManual), debitos = subtotal(T.pendAuto);
+  const VP = actual ? calcularVariablesProyectados(T, ym) : { filas: [], total: 0 };
+  const esperado = gastado + mano + debitos + VP.total;
+  const grupo = (titulo, monto, filas, extra = '') => `<div class="esp-grupo">
+      <div class="tb-sec"><span>${titulo}</span><span style="display:flex;align-items:center;gap:8px;"><span class="tb-sec-amt">+ ${money(monto)}</span>${extra}</span></div>${filas}</div>`;
+  let detalle = `<div class="esp-linea"><span>Gastado</span><span>${money(gastado)}</span></div>`;
+  detalle += grupo('A pagar a mano', mano, T.pendManual.map(it => filaTablero(it, true)).join('') || '<div class="tb-vacio">Nada por pagar a mano este mes.</div>',
+    `<button class="tb-add" data-tb-add="1" aria-label="Agregar pendiente" title="Agregar pendiente">+</button>`);
+  if (T.pendAuto.length) detalle += grupo('Débitos por llegar con el resumen', debitos, T.pendAuto.map(it => filaTablero(it, true)).join(''));
+  if (VP.filas.length) detalle += grupo('Variables proyectados', VP.total, VP.filas.map(c => `<div class="tb-row sin-x" style="cursor:default;">
+      <span class="mono mono-proy" aria-hidden="true">~</span>
+      <div style="min-width:0;"><div class="tb-n">${esc(c.categoria)}</div><div class="tb-s">al ritmo de ${money(c.diario)}/día</div></div>
+      <div class="tb-m">${money(c.esperado)}</div></div>`).join(''));
+  detalle += `<div class="esp-linea total"><span>Esperado al cierre</span><span>${money(esperado)}</span></div>`;
+  const desplegable = `<button class="esp-btn" id="esp-btn" data-esp-toggle="1" aria-expanded="${esperadoAbierto}" aria-controls="esp-detalle">
+      <span class="esp-lb">Esperado al cierre</span><span class="esp-val">${money(esperado)}<span class="esp-chev" aria-hidden="true">${esperadoAbierto ? '▴' : '▾'}</span></span>
+    </button>
+    <div class="esp-detalle" id="esp-detalle" ${esperadoAbierto ? '' : 'hidden'}>${detalle}</div>`;
 
-  // Barra de arriba + contenido de abajo, según el tile elegido
-  let barra = '', panel = '';
-  if (tileSel === 'variables') {
-    const cls = pctVar > 100 ? 'coral' : pctVar > pctDias ? 'amber' : 'mint';
-    const derecha = R.tipo === 'actual' ? `${Math.round(pctVar)}% · día ${diaFin} de ${dim}` : `${Math.round(pctVar)}%`;
-    barra = `<div class="xp-top"><span class="xp-name">Variables vs. margen</span><span>${derecha}</span></div>
-      <div class="xp-track"><div class="xp-fill ${cls}" style="width:${Math.min(pctVar, 100)}%"></div>
-      ${R.tipo === 'actual' ? `<div class="tb-marker" style="left:calc(${pctDias}% - 1px)" title="Días transcurridos: ${Math.round(pctDias)}%"></div>` : ''}</div>`;
-    let frase;
-    const resto = T.margen - T.variablesTotal;
-    if (T.margen <= 0) {
-      frase = `Los fijos del mes (pagados y pendientes) ya cubren todo el objetivo de <b>${money(T.objetivo)}</b>: no queda margen para variables.`;
-    } else if (R.tipo === 'futuro') {
-      frase = `El mes todavía no empezó. Margen para variables: <b>${money(T.margen)}</b> (objetivo ${money(T.objetivo)} menos ${money(T.fijosPagados + T.fijosPend)} de fijos).`;
-    } else if (R.tipo === 'pasado') {
-      frase = resto >= 0 ? `Cerraste <b class="mint">${money(resto)}</b> por debajo del margen de variables.` : `Cerraste <b class="coral">${money(-resto)}</b> por encima del margen de variables.`;
-    } else {
-      const diff = T.variablesTotal - T.margen * diaFin / dim;
-      const faltan = dim - diaFin;
-      frase = diff <= 0 ? `Vas <b class="mint">${money(-diff)}</b> por debajo del ritmo ideal. ` : `Vas <b class="coral">${money(diff)}</b> por encima del ritmo ideal. `;
-      if (resto <= 0) frase += `Ya usaste todo el margen de variables del mes.`;
-      else if (faltan <= 0) frase += `Es el último día: te quedan <b>${money(resto)}</b>.`;
-      else frase += `Te quedan <b>${money(resto / faltan)}</b> por día.`;
-    }
-    panel = graficoVariables(T, dim, diaFin) + `<div class="tb-frase">${frase}</div>`;
-  } else if (tileSel === 'fijos') {
-    const partes = [
-      { c: 'mint', t: 'Pagado a mano', v: T.manualPagado }, { c: 'amber', t: 'Por pagar a mano', v: T.manualPend },
-      { c: 'violet', t: 'Débito pagado', v: T.debitoPagado }, { c: 'rayado', t: 'Débito por llegar', v: T.debitoPend }
-    ];
-    barra = `<div class="xp-top"><span class="xp-name">Fijos del mes</span><span>${money(T.fijosPagados)} de ${money(T.fijosPagados + T.fijosPend)}</span></div>
-      <div class="xp-track tb-track">${segmentos(partes)}</div>${leyenda(partes)}`;
-    panel = seccion('A pagar a mano', T.manualPend, `<button class="tb-add" data-tb-add="1" aria-label="Agregar pendiente" title="Agregar pendiente">+</button>`) +
-      (T.pendManual.map(it => filaTablero(it, true)).join('') || '<div class="tb-vacio">Nada por pagar a mano este mes.</div>');
-    if (T.pendAuto.length) panel += seccion('Débitos por llegar con el resumen', T.debitoPend) + T.pendAuto.map(it => filaTablero(it, true)).join('');
-    if (T.pagados.length) panel += `<details class="tb-pagados"><summary>${seccion(`Pagados · ${T.pagados.length}<span class="tb-chev">▸</span>`, T.fijosPagados)}</summary>
-      ${T.pagados.map(it => filaTablero({ ...it, pendiente: 0, modo: (it.pagos[0] && it.pagos[0].modoPago) || it.modo }, false)).join('')}</details>`;
-  } else {
-    const partes = [{ c: 'amber', t: 'Fijos a mano', v: T.manualPend }, { c: 'violet', t: 'Variables esperables', v: E.total }];
-    barra = `<div class="xp-top"><span class="xp-name">Efectivo hasta fin de mes</span><span>${money(efectivo)}</span></div>
-      <div class="xp-track tb-track">${segmentos(partes)}</div>${leyenda(partes)}`;
-    panel = seccion('Fijos a pagar a mano', T.manualPend, `<button class="tb-add" data-tb-add="1" aria-label="Agregar pendiente" title="Agregar pendiente">+</button>`) +
-      (T.pendManual.map(it => filaTablero(it, true)).join('') || '<div class="tb-vacio">Nada por pagar a mano este mes.</div>');
-    panel += seccion(`Variables esperables · ${E.faltan} día${E.faltan === 1 ? '' : 's'}`, E.total) +
-      (E.cats.map(c => `<div class="tb-row sin-x" style="cursor:default;">
-        <span class="mono" style="background:var(--bg-card-2);color:var(--ink-soft);">${esc(c.categoria.slice(0, 2).toUpperCase())}</span>
-        <div style="min-width:0;"><div class="tb-n">${esc(c.categoria)}</div><div class="tb-s">${money(c.diario)} por día</div></div>
-        <div class="tb-m">${money(c.esperado)}</div></div>`).join('') || '<div class="tb-vacio">Sin variables esperables.</div>');
-    panel += `<div class="hint">Promedio diario de ${mesSolo(E.meses[0])} y ${mesSolo(E.meses[1])}, sin tarjetas, sin #puntual y sin subcategorías que tengan recurrente.</div>`;
-    panel += `<div class="tb-total"><span>Total a tener disponible</span><span>${money(efectivo)}</span></div>`;
+  // Cash requerido: solo en el mes en curso
+  let cash = '';
+  if (actual) {
+    const E = calcularEsperables(ym);
+    const partes = [{ c: 'amber', t: 'Comprometidos', v: T.manualPend }, { c: 'violet', t: 'Proyectados', v: E.total }];
+    cash = `<div class="tb-cash"><div class="xp-top"><span class="xp-name">Cash requerido hasta el ${dim}/${Number(ym.slice(5))}</span><span>${money(T.manualPend + E.total)}</span></div>
+      <div class="xp-track tb-track">${segmentos(partes)}</div>${leyenda(partes)}</div>`;
   }
 
-  cont.innerHTML = `<div class="tb-bar">${barra}</div>
-    <div class="tb-tiles ${actual ? '' : 'dos'}" role="tablist">${tiles}</div>
-    <div class="tb-panel">${panel}</div>`;
-  if (tileSel === 'variables') engancharGrafico();
+  // Ritmo de variables
+  const pctDias = diaFin / dim * 100;
+  const pctVar = T.margen > 0 ? T.variablesTotal / T.margen * 100 : (T.variablesTotal > 0 ? 100 : 0);
+  const cls = pctVar > 100 ? 'coral' : pctVar > pctDias ? 'amber' : 'mint';
+  const derecha = R.tipo === 'actual' ? `${Math.round(pctVar)}% · día ${diaFin} de ${dim}` : `${Math.round(pctVar)}%`;
+  const barra = `<div class="xp-top"><span class="xp-name">Variables vs. margen</span><span>${derecha}</span></div>
+    <div class="xp-track"><div class="xp-fill ${cls}" style="width:${Math.min(pctVar, 100)}%"></div>
+    ${R.tipo === 'actual' ? `<div class="tb-marker" style="left:calc(${pctDias}% - 1px)" title="Días transcurridos: ${Math.round(pctDias)}%"></div>` : ''}</div>`;
+  let frase;
+  const resto = T.margen - T.variablesTotal;
+  if (T.margen <= 0) {
+    frase = `Los fijos del mes (pagados y pendientes) ya cubren todo el objetivo de <b>${money(T.objetivo)}</b>: no queda margen para variables.`;
+  } else if (R.tipo === 'futuro') {
+    frase = `El mes todavía no empezó. Margen para variables: <b>${money(T.margen)}</b> (objetivo ${money(T.objetivo)} menos ${money(T.fijosPagados + T.fijosPend)} de fijos).`;
+  } else if (R.tipo === 'pasado') {
+    frase = resto >= 0 ? `Cerraste <b class="mint">${money(resto)}</b> por debajo del margen de variables.` : `Cerraste <b class="coral">${money(-resto)}</b> por encima del margen de variables.`;
+  } else {
+    const diff = T.variablesTotal - T.margen * diaFin / dim;
+    const faltan = dim - diaFin;
+    frase = diff <= 0 ? `Vas <b class="mint">${money(-diff)}</b> por debajo del ritmo ideal. ` : `Vas <b class="coral">${money(diff)}</b> por encima del ritmo ideal. `;
+    if (resto <= 0) frase += `Ya usaste todo el margen de variables del mes.`;
+    else if (faltan <= 0) frase += `Es el último día: te quedan <b>${money(resto)}</b>.`;
+    else frase += `Te quedan <b>${money(resto / faltan)}</b> por día.`;
+  }
+
+  cont.innerHTML = `<div class="tb-esperado">${desplegable}</div>${cash}
+    <div class="tb-ritmo"><div class="tb-bar">${barra}</div>${graficoVariables(T, dim, diaFin)}<div class="tb-frase">${frase}</div></div>`;
+  engancharGrafico();
 }
 
 document.getElementById('tablero').addEventListener('click', e => {
-  const t = e.target.closest('[data-tile]');
-  if (t) { tileSel = t.dataset.tile; renderTablero(rangoVisible()); return; }
+  if (e.target.closest('[data-esp-toggle]')) {
+    esperadoAbierto = !esperadoAbierto;
+    const b = document.getElementById('esp-btn');
+    b.setAttribute('aria-expanded', esperadoAbierto);
+    b.querySelector('.esp-chev').textContent = esperadoAbierto ? '▴' : '▾';
+    document.getElementById('esp-detalle').hidden = !esperadoAbierto;
+    return;
+  }
   if (e.target.closest('[data-tb-add]')) { e.preventDefault(); abrirNuevoPendiente(); return; }
   const x = e.target.closest('[data-tb-x]');
   if (x) { quitarPendiente(TB_ITEMS[x.dataset.tbX]); return; }

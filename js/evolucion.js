@@ -55,8 +55,8 @@ function renderEvolucion() {
       data: meses.map(ym => sumar((porMes[ym] || []).filter(f)))
     }));
   } else {
-    const real = meses.map(ym => sumar((porMes[ym] || []).filter(g => sel(g) && !esProyectado(g))));
-    const proy = meses.map(ym => sumar((porMes[ym] || []).filter(g => sel(g) && esProyectado(g))));
+    const real = meses.map(ym => sumar((porMes[ym] || []).filter(g => sel(g) && esPagado(g))));
+    const proy = meses.map(ym => sumar((porMes[ym] || []).filter(g => sel(g) && !esPagado(g))));
     datasets = [
       { type: 'bar', label: 'Pagado', data: real, backgroundColor: '#4CE0B3', stack: 's', borderRadius: 3, order: 2 },
       { type: 'bar', label: 'Proyectado', data: proy, backgroundColor: 'rgba(139,124,255,0.55)', stack: 's', borderRadius: 3, order: 2 }
