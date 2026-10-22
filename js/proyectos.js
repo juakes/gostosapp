@@ -155,7 +155,6 @@ async function guardarTituloProyecto(id, input) {
   if (error) { alert('No se pudo renombrar: ' + error.message); input.value = p.titulo; return; }
   p.titulo = titulo;
   document.querySelectorAll(`.titulo-inline[data-titulo="${id}"]`).forEach(el => { if (el !== input) el.value = titulo; });
-  renderProyectosMes(rangoVisible());
 }
 
 // ---- Detalle de un proyecto ----
@@ -351,49 +350,3 @@ async function borrarAporte(id) {
   await refrescarVistasFinanzas();
   renderTodo();
 }
-
-// ---- Tarjeta "Proyectos" en la vista del mes ----
-// Lo aportado desde flujo: aportes de fuentes de flujo + reposiciones a fuentes de stock (en pesos, monto_ars)
-function renderProyectosMes(R) {
-  const cont = document.getElementById('proyectos-mes');
-  const flujo = new Set(DATA.fuentes.filter(f => f.tipo === 'flujo').map(f => f.id));
-  const enRango = f => f.fecha >= R.desde && f.fecha <= R.hasta;
-  const aportes = DATA.aportes.filter(a => flujo.has(a.fuenteId) && enRango(a));
-  const reposiciones = DATA.movimientos.filter(m => m.tipo === 'reposicion' && enRango(m));
-  if (!DATA.proyectos.length && !reposiciones.length) { cont.innerHTML = ''; return; }
-  const gastos = DATA.gastos.filter(g => g.proyectoId && !esProyectado(g) && enRango(g));
-  const ids = new Set([...aportes.map(a => a.proyectoId), ...gastos.map(g => g.proyectoId)]);
-  DATA.proyectos.forEach(p => { if (p.estado === 'activo') ids.add(p.id); });
-  const lineasProy = [...ids].map(id => DATA.proyectos.find(p => p.id === id)).filter(Boolean)
-    .sort((a, b) => a.titulo.localeCompare(b.titulo, 'es'))
-    .map(p => {
-      const ap = porMoneda(aportes.filter(a => a.proyectoId === p.id));
-      const ga = porMoneda(gastos.filter(g => g.proyectoId === p.id));
-      return `<div class="linea clickable" data-proy-mes="${p.id}">
-        <div><div class="l-nombre">${esc(p.titulo)}</div><div class="l-sub">Gastado ${R.esRango ? 'en el período' : 'en el mes'}: ${textoPorMoneda(ga)}</div></div>
-        <div class="l-monto">${textoPorMoneda(ap)}</div>
-      </div>`;
-    });
-  const porFuente = {};
-  reposiciones.forEach(m => { (porFuente[m.fuenteId] = porFuente[m.fuenteId] || []).push(m); });
-  const lineasRepo = Object.entries(porFuente).map(([fid, movs]) => {
-    const f = DATA.fuentes.find(x => x.id === fid);
-    const ars = movs.reduce((s, m) => s + (m.montoArs || 0), 0);
-    const orig = movs.reduce((s, m) => s + m.monto, 0);
-    return `<div class="linea">
-      <div><div class="l-nombre">Reposición a ${esc(nombreFuente(fid))}</div>${f && f.moneda !== 'ARS' ? `<div class="l-sub">${moneyM(orig, f.moneda)}</div>` : ''}</div>
-      <div class="l-monto">${money(ars)}</div>
-    </div>`;
-  });
-  const total = porMoneda(aportes);
-  total.ARS += reposiciones.reduce((s, m) => s + (m.montoArs || 0), 0);
-  cont.innerHTML = `<div class="card">
-    <div class="card-top"><span class="card-label">Proyectos: aportado desde flujo ${R.esRango ? 'en el período' : 'este mes'}</span></div>
-    <div class="card-num">${textoPorMoneda(total)}</div>
-    <div style="margin-top:6px;">${lineasProy.concat(lineasRepo).join('')}</div>
-  </div>`;
-}
-document.getElementById('proyectos-mes').addEventListener('click', e => {
-  const l = e.target.closest('[data-proy-mes]');
-  if (l) abrirProyecto(l.dataset.proyMes);
-});

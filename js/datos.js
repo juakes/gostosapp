@@ -56,6 +56,12 @@ async function cargarTodo() {
     await supa.from('objetivos').insert(Object.entries(OBJETIVOS_DEFAULT).map(([categoria, monto]) => ({ categoria, monto })));
   }
 
+  // objetivo por subcategoría ('' = la categoría entera, para categorías sin subcategorías)
+  DATA.objSub = {};
+  (await traerTodos('objetivos_subcategoria')).forEach(o => {
+    (DATA.objSub[o.categoria] = DATA.objSub[o.categoria] || {})[o.subcategoria] = { monto: Number(o.monto) || 0, activa: o.activa !== false };
+  });
+
   const subRows = await traerTodos('subcategorias');
   DATA.categorias = {};
   Object.keys(DATA.objetivos).forEach(cat => { DATA.categorias[cat] = []; });

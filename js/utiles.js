@@ -23,7 +23,7 @@ function nombreDiaSemana(fechaStr) {
   const nombre = d.toLocaleDateString('es-AR', { weekday: 'short' });
   return nombre.charAt(0).toUpperCase() + nombre.slice(1).replace('.', '');
 }
-function money(v) { return '$' + Math.round(v || 0).toLocaleString('es-AR'); }
+function money(v) { return '$' + Math.round(Math.round((v || 0) * 100) / 100).toLocaleString('es-AR'); }
 function moneyM(v, moneda) { return moneda === 'USD' ? 'US$ ' + (Math.round((v || 0) * 100) / 100).toLocaleString('es-AR') : money(v); }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function sumar(arr) { return arr.reduce((s, g) => s + g.monto, 0); }

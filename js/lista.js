@@ -32,9 +32,10 @@ function filaTx(g) {
 }
 function textoMontos(items) {
   const ars = items.filter(g => !esUSD(g));
-  const real = sumar(ars.filter(g => !esProyectado(g)));
-  const proy = sumar(ars.filter(esProyectado));
-  const usd = sumar(items.filter(esUSD));
+  // gastado = solo realizados; lo pendiente (proyectado o cargado como pendiente) va aparte
+  const real = sumar(ars.filter(esPagado));
+  const proy = sumar(ars.filter(g => !esPagado(g)));
+  const usd = sumar(items.filter(g => esUSD(g) && esPagado(g)));
   return { real, proy, usd };
 }
 
@@ -72,7 +73,7 @@ function renderTodo() {
 
   // Navegación / etiqueta del período
   const label = document.getElementById('mes-label');
-  label.textContent = R.etiqueta;
+  label.textContent = R.esRango ? R.etiqueta : nombreMes(mesSeleccionado).replace(' de ', ' ');
   label.classList.toggle('futuro', futuro);
   document.getElementById('mes-arrow-prev').style.visibility = R.esRango ? 'hidden' : 'visible';
   document.getElementById('mes-arrow-next').style.visibility = R.esRango ? 'hidden' : 'visible';
@@ -82,8 +83,6 @@ function renderTodo() {
   const enRango = DATA.gastos.filter(g => !g.proyectoId && g.fecha >= R.desde && g.fecha <= R.hasta && cumpleFiltros(g));
   const cuenta = enRango.filter(g => sumaAlTotal(g.categoria));
   const m = textoMontos(cuenta);
-  const catsObjetivo = (FILTROS.categorias.length ? FILTROS.categorias : Object.keys(DATA.objetivos)).filter(sumaAlTotal);
-  const objetivoTotal = catsObjetivo.reduce((s, c) => s + (DATA.objetivos[c] || 0), 0) * R.meses;
 
   let hudLabel;
   if (R.esRango) hudLabel = futuro ? 'Proyectado para el período' : 'Gastado en el período';
@@ -95,16 +94,11 @@ function renderTodo() {
 
   const nReales = cuenta.filter(g => !esProyectado(g)).length;
   const nProy = cuenta.length - nReales;
-  const gastadoHud = futuro ? m.real + m.proy : m.real;
-  const partesSub = [];
-  partesSub.push(objetivoTotal > 0 ? `${Math.round(gastadoHud / objetivoTotal * 100)}% del objetivo de ${money(objetivoTotal)}` : 'sin objetivo');
-  partesSub.push(futuro ? `${nReales ? nReales + ' ya cargados y ' : ''}${nProy} proyectados` : `${nReales} movimientos`);
-  let sub = partesSub.join(' · ');
-  if (m.usd) sub += `. Además, US$ ${m.usd.toLocaleString('es-AR')} en dólares`;
-  document.getElementById('hud-sub').textContent = sub;
-  document.getElementById('hud-sub2').textContent = (!futuro && m.proy) ? `Faltan ${money(m.proy)} proyectados. Total esperado: ${money(m.real + m.proy)}` : '';
+  document.getElementById('hud-sub').textContent = futuro ? `${nReales ? nReales + ' ya cargados y ' : ''}${nProy} proyectados` : `${nReales} movimientos`;
+  document.getElementById('hud-usd').textContent = m.usd ? `+ ${moneyM(m.usd, 'USD')}` : '';
 
   renderTablero(R);
+  renderDona(R);
 
   renderChips();
   renderFilterStrip();
@@ -121,7 +115,7 @@ function renderTodo() {
     const items = porCategoria[cat] || [];
     const mm = textoMontos(items);
     const suma = sumaAlTotal(cat);
-    const objetivo = (DATA.objetivos[cat] || 0) * R.meses;
+    const objetivo = objetivoCategoria(cat) * R.meses;
     const st = !suma ? 'neutral' : estadoClase(mm.real, objetivo);
     const pct = objetivo > 0 ? Math.min(mm.real / objetivo * 100, 100) : (mm.real > 0 ? 100 : 0);
     const pctG = objetivo > 0 ? Math.min((mm.real + mm.proy) / objetivo * 100, 100) : ((mm.real + mm.proy) > 0 ? 100 : 0);
@@ -141,7 +135,6 @@ function renderTodo() {
   }).join('');
   document.getElementById('acordeon').innerHTML = html || '<div class="empty">Ningún gasto coincide con los filtros. Probá quitar alguno.</div>';
 
-  renderProyectosMes(R);
   renderVistasFinanzas();
 }
 

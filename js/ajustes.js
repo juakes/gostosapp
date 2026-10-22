@@ -20,23 +20,19 @@ async function borrarIngreso(id) { await supa.from('ingresos').delete().eq('id',
 
 // ---------- Objetivos ----------
 function formatMonedaComa(v) { return '$' + Math.round(v || 0).toLocaleString('es-AR'); }
-function parseMonedaComa(str) { return parseFloat(String(str).replace(/[^0-9-]/g, '')) || 0; }
 function renderObjetivos() {
   document.getElementById('lista-objetivos').innerHTML = Object.keys(DATA.categorias).map((cat, i) => `
     <div class="obj-row">
       <span>${esc(cat)}</span>
       <label class="mini-check"><input type="checkbox" data-suma-idx="${i}" ${sumaAlTotal(cat) ? 'checked' : ''}> suma</label>
-      <input type="text" inputmode="numeric" data-obj-idx="${i}" value="${formatMonedaComa(DATA.objetivos[cat] || 0)}" aria-label="Objetivo ${esc(cat)}">
+      <span class="obj-monto">${formatMonedaComa(objetivoCategoria(cat))}</span>
     </div>`).join('');
-  document.querySelectorAll('[data-obj-idx]').forEach(inp => {
-    inp.addEventListener('focus', () => { inp.value = Math.round(parseMonedaComa(inp.value)) || ''; });
-    inp.addEventListener('blur', () => { inp.value = formatMonedaComa(parseMonedaComa(inp.value)); });
-  });
 }
+// El objetivo de cada categoría es la suma de sus subcategorías (se edita en Objetivo mensual): acá solo se elige si suma al total
 async function guardarObjetivos() {
   const cats = Object.keys(DATA.categorias);
   const filas = cats.map((cat, i) => {
-    const monto = parseMonedaComa(document.querySelector(`[data-obj-idx="${i}"]`).value);
+    const monto = objetivoCategoria(cat);
     const suma = document.querySelector(`[data-suma-idx="${i}"]`).checked;
     DATA.objetivos[cat] = monto; DATA.sumaAlTotal[cat] = suma;
     return { categoria: cat, monto, suma_al_total: suma };

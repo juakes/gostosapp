@@ -26,4 +26,5 @@ async function entrarALaApp() {
   await asegurarProyecciones();
   renderTodo();
   renderAlertas();
+  sincronizarRuta();
 }
