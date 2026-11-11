@@ -35,9 +35,9 @@ async function guardarObjetivos() {
     const monto = objetivoCategoria(cat);
     const suma = document.querySelector(`[data-suma-idx="${i}"]`).checked;
     DATA.objetivos[cat] = monto; DATA.sumaAlTotal[cat] = suma;
-    return { categoria: cat, monto, suma_al_total: suma };
+    return { categoria: cat, mes: mesDB(mesSeleccionado), monto, suma_al_total: suma };
   });
-  await supa.from('objetivos').upsert(filas, { onConflict: 'user_id,categoria' });
+  await supa.from('objetivos').upsert(filas, { onConflict: 'user_id,mes,categoria' });
   mostrarToast('Objetivos guardados');
   renderObjetivos(); renderTodo();
 }
@@ -139,8 +139,8 @@ async function importarBackup() {
       DATA.ingresos = DATA.ingresos.concat((ins || []).map(i => ({ id: i.id, fecha: i.fecha, monto: Number(i.monto), descripcion: i.descripcion })));
     }
     if (data.objetivos) {
-      DATA.objetivos = { ...DATA.objetivos, ...data.objetivos };
-      await supa.from('objetivos').upsert(Object.entries(data.objetivos).map(([categoria, monto]) => ({ categoria, monto })), { onConflict: 'user_id,categoria' });
+      Object.assign(DATA.objetivos, data.objetivos);   // DATA.objetivos es el del mes que se está viendo
+      await supa.from('objetivos').upsert(Object.entries(DATA.objetivos).map(([categoria, monto]) => ({ categoria, monto, mes: mesDB(mesSeleccionado), suma_al_total: sumaAlTotal(categoria) })), { onConflict: 'user_id,mes,categoria' });
     }
     if (data.categorias) {
       DATA.categorias = normalizarCategorias({ ...DATA.categorias, ...data.categorias });

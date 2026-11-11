@@ -260,16 +260,17 @@ function fijarCategoria(cat, valor) {
 async function guardarObjetivo() {
   const btn = document.querySelector('[data-obj-guardar]');
   btn.disabled = true;
+  const ym = mesSeleccionado, mes = mesDB(ym);   // el mes que se está viendo en la pantalla
   const filas = [];
   Object.entries(OBJ).forEach(([categoria, subs]) => Object.entries(subs).forEach(([subcategoria, f]) => {
     f.monto = Math.round(f.monto);
-    filas.push({ categoria, subcategoria, monto: f.monto, activa: f.activa });
+    filas.push({ categoria, subcategoria, mes, monto: f.monto, activa: f.activa });
   }));
-  const { error } = await supa.from('objetivos_subcategoria').upsert(filas, { onConflict: 'user_id,categoria,subcategoria' });
+  const { error } = await supa.from('objetivos_subcategoria').upsert(filas, { onConflict: 'user_id,mes,categoria,subcategoria' });
   if (error) { alert('No se pudo guardar el objetivo: ' + error.message); btn.disabled = false; return; }
-  DATA.objSub = JSON.parse(JSON.stringify(OBJ));
-  const objs = categoriasObjetivo().map(cat => ({ categoria: cat, monto: objetivoCategoria(cat), suma_al_total: sumaAlTotal(cat) }));
-  const r = await supa.from('objetivos').upsert(objs, { onConflict: 'user_id,categoria' });
+  DATA.objSub = DATA.objSubMes[ym] = JSON.parse(JSON.stringify(OBJ));
+  const objs = categoriasObjetivo().map(cat => ({ categoria: cat, mes, monto: objetivoCategoria(cat), suma_al_total: sumaAlTotal(cat) }));
+  const r = await supa.from('objetivos').upsert(objs, { onConflict: 'user_id,mes,categoria' });
   if (r.error) { alert('Se guardaron las subcategorías, pero no el total por categoría: ' + r.error.message); btn.disabled = false; return; }
   objs.forEach(o => { DATA.objetivos[o.categoria] = o.monto; });
   OBJ_ARRASTRE = null; OBJ_ORDEN = [];

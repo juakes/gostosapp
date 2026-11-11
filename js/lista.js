@@ -68,6 +68,7 @@ function renderSubcategoriasDeCategoria(cat, items) {
 
 function renderTodo() {
   IDX_COMP = null;
+  aplicarObjetivosDelMes(mesSeleccionado);
   const R = rangoVisible();
   const futuro = R.tipo === 'futuro';
 

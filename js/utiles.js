@@ -4,6 +4,8 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function hoyISO() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 function ymDe(fecha) { return String(fecha).slice(0, 7); }
 function ymActual() { return hoyISO().slice(0, 7); }
+// 'YYYY-MM' -> 'YYYY-MM-01' (columna mes de objetivos). Se arma con texto, sin Date/toISOString, para no correrse de mes por zona horaria.
+function mesDB(ym) { return String(ym).slice(0, 7) + '-01'; }
 function ymSumar(ym, n) {
   let [y, m] = ym.split('-').map(Number);
   m += n;

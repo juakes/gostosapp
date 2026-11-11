@@ -37,6 +37,28 @@ async function traerTodos(tabla) {
   return out;
 }
 
+// Mes de objetivos a usar para ym: el propio si tiene filas; si no, el último anterior con filas (o el primero que haya).
+function mesBaseObjetivos(mapa, ym) {
+  const meses = Object.keys(mapa).sort();
+  if (mapa[ym] || !meses.length) return ym;
+  return meses.filter(m => m < ym).pop() || meses[0];
+}
+// Deja en DATA los objetivos del mes ym. Un mes sin filas arranca con una copia del mes base (solo en memoria
+// hasta que se guarde), así editar un mes nuevo no toca los objetivos de otro.
+function aplicarObjetivosDelMes(ym) {
+  if (!DATA.objetivosMes[ym]) {
+    const base = DATA.objetivosMes[mesBaseObjetivos(DATA.objetivosMes, ym)];
+    DATA.objetivosMes[ym] = base ? JSON.parse(JSON.stringify(base)) : { objetivos: {}, sumaAlTotal: {} };
+  }
+  if (!DATA.objSubMes[ym]) {
+    const base = DATA.objSubMes[mesBaseObjetivos(DATA.objSubMes, ym)];
+    DATA.objSubMes[ym] = base ? JSON.parse(JSON.stringify(base)) : {};
+  }
+  DATA.objetivos = DATA.objetivosMes[ym].objetivos;
+  DATA.sumaAlTotal = DATA.objetivosMes[ym].sumaAlTotal;
+  DATA.objSub = DATA.objSubMes[ym];
+}
+
 async function cargarTodo() {
   DATA.gastos = (await traerTodos('gastos')).map(mapGasto);
   DATA.ingresos = (await traerTodos('ingresos')).map(i => ({ id: i.id, fecha: i.fecha, monto: Number(i.monto), descripcion: i.descripcion }));
@@ -47,24 +69,32 @@ async function cargarTodo() {
   DATA.aportes = (await traerTodos('proyecto_aportes')).map(mapAporte);
   DATA.cotizaciones = (await traerTodos('cotizaciones')).map(mapCotizacion);
 
+  // Los objetivos son por mes (columna mes = primer día del mes). Se guardan agrupados por 'YYYY-MM' y
+  // aplicarObjetivosDelMes() deja en DATA.objetivos / sumaAlTotal / objSub solo los del mes que se está viendo.
   const objetivosRows = await traerTodos('objetivos');
-  DATA.objetivos = {}; DATA.sumaAlTotal = {};
+  DATA.objetivosMes = {};
   if (objetivosRows.length) {
-    objetivosRows.forEach(o => { DATA.objetivos[o.categoria] = Number(o.monto) || 0; DATA.sumaAlTotal[o.categoria] = o.suma_al_total !== false; });
+    objetivosRows.forEach(o => {
+      const m = DATA.objetivosMes[ymDe(o.mes)] = DATA.objetivosMes[ymDe(o.mes)] || { objetivos: {}, sumaAlTotal: {} };
+      m.objetivos[o.categoria] = Number(o.monto) || 0; m.sumaAlTotal[o.categoria] = o.suma_al_total !== false;
+    });
   } else {
-    DATA.objetivos = { ...OBJETIVOS_DEFAULT };
-    await supa.from('objetivos').insert(Object.entries(OBJETIVOS_DEFAULT).map(([categoria, monto]) => ({ categoria, monto })));
+    const ym = ymActual();
+    DATA.objetivosMes[ym] = { objetivos: { ...OBJETIVOS_DEFAULT }, sumaAlTotal: {} };
+    await supa.from('objetivos').insert(Object.entries(OBJETIVOS_DEFAULT).map(([categoria, monto]) => ({ categoria, monto, mes: mesDB(ym) })));
   }
 
-  // objetivo por subcategoría ('' = la categoría entera, para categorías sin subcategorías)
-  DATA.objSub = {};
+  // objetivo por subcategoría ('' = la categoría entera, para categorías sin subcategorías), también por mes
+  DATA.objSubMes = {};
   (await traerTodos('objetivos_subcategoria')).forEach(o => {
-    (DATA.objSub[o.categoria] = DATA.objSub[o.categoria] || {})[o.subcategoria] = { monto: Number(o.monto) || 0, activa: o.activa !== false };
+    const m = DATA.objSubMes[ymDe(o.mes)] = DATA.objSubMes[ymDe(o.mes)] || {};
+    (m[o.categoria] = m[o.categoria] || {})[o.subcategoria] = { monto: Number(o.monto) || 0, activa: o.activa !== false };
   });
+  aplicarObjetivosDelMes(mesSeleccionado);
 
   const subRows = await traerTodos('subcategorias');
   DATA.categorias = {};
-  Object.keys(DATA.objetivos).forEach(cat => { DATA.categorias[cat] = []; });
+  Object.values(DATA.objetivosMes).forEach(m => Object.keys(m.objetivos).forEach(cat => { DATA.categorias[cat] = []; }));
   if (subRows.length) {
     subRows.forEach(s => {
       if (!DATA.categorias[s.categoria]) DATA.categorias[s.categoria] = [];

@@ -17,7 +17,10 @@ async function crearCategoriaRapida(nombre) {
     DATA.categorias[nombre] = [];
     DATA.objetivos[nombre] = 0;
     DATA.sumaAlTotal[nombre] = true;
-    await supa.from('objetivos').insert({ categoria: nombre, monto: 0 });
+    // Se escriben todas las categorías del mes que se ve (sin pisar las que ya están), por si ese mes todavía no tenía filas
+    const mes = mesDB(mesSeleccionado);
+    await supa.from('objetivos').upsert(Object.keys(DATA.objetivos).map(categoria =>
+      ({ categoria, mes, monto: DATA.objetivos[categoria] || 0, suma_al_total: sumaAlTotal(categoria) })), { onConflict: 'user_id,mes,categoria', ignoreDuplicates: true });
   }
   return nombre;
 }

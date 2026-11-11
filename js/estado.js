@@ -1,6 +1,7 @@
 // ---------- Estado ----------
 let DATA = { gastos: [], ingresos: [], objetivos: {}, sumaAlTotal: {}, categorias: {}, correcciones: {}, recurrentes: [],
-  proyectos: [], fuentes: [], movimientos: [], aportes: [], cotizaciones: [], objSub: {} };
+  proyectos: [], fuentes: [], movimientos: [], aportes: [], cotizaciones: [], objSub: {},
+  objetivosMes: {}, objSubMes: {} };
 
 const CATEGORIAS_DEFAULT = {
   "Hogar": ["ABL","Expensas","Luz","Gas","Celulares","Internet","Agua","Servicio doméstico","Abonos digitales"],
